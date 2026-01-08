@@ -1,0 +1,18 @@
+config:
+  target: "http://localhost:3001"
+  phases:
+    - duration: 60        # 60 segundos de prueba
+      arrivalRate: 5      # 5 usuarios nuevos por segundo
+      name: "Carga normal"
+    - duration: 30
+      arrivalRate: 15     # Subimos a 15 usuarios/segundo
+      name: "Pico de carga"
+
+scenarios:
+  - name: "Usuario consulta reportes"
+    flow:
+      - get:
+          url: "/Reportes"
+      - think: 2          # Pausa 2 segundos (simula usuario real)
+      - get:
+          url: "/Reportes"

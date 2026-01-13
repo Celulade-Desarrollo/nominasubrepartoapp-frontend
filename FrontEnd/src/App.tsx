@@ -10,6 +10,7 @@ export type UserProfile = "administrativo" | "coordinador" | "operativo" | null;
 
 export interface User {
   id: string;
+  documento_id: number;
   cedula: string;
   nombre: string;
   perfil: UserProfile;
@@ -50,14 +51,16 @@ export default function App() {
         const microsoftUser = accounts[0];
         const email = microsoftUser.username.toLowerCase(); // Este es el email corporativo
 
-        console.log("Email de Microsoft:", email);
-        console.log("Objeto completo de Microsoft:", microsoftUser);
+        console.log("🔍 Buscando usuario con email:", email);
+
         // Buscamos el usuario en nuestra base de datos por su email (Autenticado por Azure AD)
         const usuario = await usuariosAPI.getByEmail(email);
 
         if (usuario) {
+          console.log("✅ Usuario encontrado:", usuario);
           setUser({
             id: usuario.id,
+            documento_id: usuario.documento_id,
             cedula: usuario.documento_id.toString(),
             nombre: usuario.nombre_usuario,
             perfil: rolToProfile[usuario.rol] || "operativo",
@@ -66,16 +69,28 @@ export default function App() {
           });
         } else {
           // El usuario se autenticó con Microsoft pero no existe en nuestra BD
-          // Esto puede pasar si es un empleado nuevo que aún no fue registrado
+          console.warn("⚠️ Usuario autenticado pero no existe en la BD");
           setError(
             "Tu cuenta de Microsoft no está registrada en el sistema de nómina. Contacta al administrador."
           );
         }
-      } catch (err) {
-        console.error("Error loading user data:", err);
-        setError("Error al cargar los datos del usuario. Verifica con tu administrador.");
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "Error desconocido";
+        console.error("❌ Error al cargar usuario:", errorMessage);
+        console.error("❌ Error completo:", err);
+        
+        // Verificar si es un 404 (usuario no encontrado)
+        if (errorMessage.includes("404") || errorMessage.includes("no encontrado")) {
+          setError(
+            "Tu cuenta de Microsoft no está registrada en el sistema de nómina. Contacta al administrador."
+          );
+        } else {
+          setError("Error al cargar los datos del usuario. Verifica con tu administrador.");
+        }
       }
     };
+        
+    
 
     loadUserFromDatabase();
   }, [isAuthenticated, accounts, user]);
@@ -149,7 +164,7 @@ export default function App() {
               <p className="text-gray-600">Cargando datos del usuario...</p>
             </>
           )}
-        </div>
++        </div>
       </div>
     );
   }

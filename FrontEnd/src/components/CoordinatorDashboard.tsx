@@ -43,35 +43,25 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
   const loadData = async () => {
     try {
       setLoading(true);
-      const companiesData = await companiesAPI.getAll();
+      
+      // Cargar las áreas y empresas específicas del coordinador usando documento_id
+      const coordinadorDocumentoId = String(user.documento_id);
+      console.log("📊 Cargando datos del coordinador:", coordinadorDocumentoId);
+      
+      const areasData = await areasEnCompanyAPI.getAreasByCoordinator(coordinadorDocumentoId);
+      const companiesData = await areasEnCompanyAPI.getByCoordinator(coordinadorDocumentoId);
 
-      const clientesWithAreas: Cliente[] = await Promise.all(
-        companiesData.map(async (company) => {
-          const areasData = await areasEnCompanyAPI.getByCompany(company.id);
-          return {
-            id: company.id,
-            nombre: company.nombre_company,
-            elementoPEP: company.elemento_pep,
-            areas: areasData.map(a => a.nombre_area || ''),
-          };
-        })
-      );
+      const clientesWithAreas: Cliente[] = companiesData.map((company) => ({
+        id: company.company_cliente,
+        nombre: company.nombre_company,
+        elementoPEP: company.elemento_pep,
+        areas: [company.nombre_area],
+      }));
 
       setClientes(clientesWithAreas);
-
-      // Load coordinator specific records
-      const coordinatorReports = await reportesAPI.getByDocumento(parseInt(user.cedula));
-      const mappedRecords: HoursRecord[] = coordinatorReports.map(report => ({
-        clienteId: report.cliente,
-        clienteNombre: report.nombre_company || report.cliente,
-        horas: report.horas,
-        fecha: report.fecha_trabajada ? report.fecha_trabajada.split('T')[0] : new Date().toISOString().split('T')[0],
-        areaCliente: report.nombre_area,
-        aprobado: report.aprobado
-      }));
-      setHoursRecords(mappedRecords);
-    } catch (err) {
-      console.error('Error loading data:', err);
+      console.log("✅ Datos del coordinador cargados:", clientesWithAreas);
+    } catch (error) {
+      console.error("❌ Error al cargar datos:", error);
     } finally {
       setLoading(false);
     }

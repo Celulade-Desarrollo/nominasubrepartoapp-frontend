@@ -113,6 +113,8 @@ export const areasEnCompanyAPI = {
     getAll: () => fetchAPI<IntermediArea[]>('/AreasEnCompany'),
     getById: (id: number) => fetchAPI<IntermediArea>(`/AreasEnCompany/${id}`),
     getByCompany: (companyId: string) => fetchAPI<IntermediArea[]>(`/AreasEnCompany/company/${companyId}`),
+    getByCoordinator: (coordinadorId: string) => fetchAPI<IntermediArea[]>(`/AreasEnCompany/coordinator/${coordinadorId}/companies`),
+    getAreasByCoordinator: (coordinadorId: string) => fetchAPI<Area[]>(`/AreasEnCompany/coordinator/${coordinadorId}/areas`),
     create: (data: { company_cliente: string; area_cliente: number }) =>
         fetchAPI<IntermediArea>('/AreasEnCompany', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: { company_cliente?: string; area_cliente?: number }) =>

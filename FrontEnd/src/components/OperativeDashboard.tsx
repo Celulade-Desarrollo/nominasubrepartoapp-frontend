@@ -40,21 +40,27 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
   const loadData = async () => {
     try {
       setLoading(true);
-      // Load companies and their areas
-      const companiesData = await companiesAPI.getAll();
+      // Load ALL companies and their areas (unrestricted)
+      const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
+      
+      // Group by company
+      const companiesMap = new Map<string, Cliente>();
+      allCompaniesWithAreas.forEach((item: any) => {
+        if (!companiesMap.has(item.company_cliente)) {
+          companiesMap.set(item.company_cliente, {
+            id: item.company_cliente,
+            nombre: item.nombre_company,
+            elementoPEP: item.elemento_pep,
+            areas: [],
+          });
+        }
+        const cliente = companiesMap.get(item.company_cliente);
+        if (cliente && item.nombre_area) {
+          cliente.areas.push(item.nombre_area);
+        }
+      });
 
-      const clientesWithAreas: Cliente[] = await Promise.all(
-        companiesData.map(async (company) => {
-          const areasData = await areasEnCompanyAPI.getByCompany(company.id);
-          return {
-            id: company.id,
-            nombre: company.nombre_company,
-            elementoPEP: company.elemento_pep,
-            areas: areasData.map(a => a.nombre_area || ''),
-          };
-        })
-      );
-
+      const clientesWithAreas = Array.from(companiesMap.values());
       setClientes(clientesWithAreas);
 
       // Load existing reports for this user

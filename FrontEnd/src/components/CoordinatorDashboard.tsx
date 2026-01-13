@@ -34,6 +34,7 @@ interface Cliente {
 export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardProps) {
   const [hoursRecords, setHoursRecords] = useState<HoursRecord[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesParaAprobacion, setClientesParaAprobacion] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,22 +45,45 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
     try {
       setLoading(true);
       
-      // Cargar las áreas y empresas específicas del coordinador usando documento_id
       const coordinadorDocumentoId = String(user.documento_id);
       console.log("📊 Cargando datos del coordinador:", coordinadorDocumentoId);
       
-      const areasData = await areasEnCompanyAPI.getAreasByCoordinator(coordinadorDocumentoId);
+      // PARTE 1: Cargar TODAS las empresas y áreas para GENERAR reportes (SIN FILTRO)
+      const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
+      
+      // Agrupar por empresa
+      const companiesMap = new Map<string, Cliente>();
+      allCompaniesWithAreas.forEach((item: any) => {
+        if (!companiesMap.has(item.company_cliente)) {
+          companiesMap.set(item.company_cliente, {
+            id: item.company_cliente,
+            nombre: item.nombre_company,
+            elementoPEP: item.elemento_pep,
+            areas: [],
+          });
+        }
+        const cliente = companiesMap.get(item.company_cliente);
+        if (cliente && item.nombre_area) {
+          cliente.areas.push(item.nombre_area);
+        }
+      });
+
+      const allClientesWithAreas = Array.from(companiesMap.values());
+      setClientes(allClientesWithAreas);
+      console.log("✅ TODAS las empresas cargadas para GENERAR reportes (SIN FILTRO):", allClientesWithAreas);
+
+      // PARTE 2: Cargar solo las áreas del coordinador para APROBAR reportes (CON FILTRO)
       const companiesData = await areasEnCompanyAPI.getByCoordinator(coordinadorDocumentoId);
 
-      const clientesWithAreas: Cliente[] = companiesData.map((company) => ({
+      const clientesForAprobacion: Cliente[] = companiesData.map((company) => ({
         id: company.company_cliente,
         nombre: company.nombre_company,
         elementoPEP: company.elemento_pep,
         areas: [company.nombre_area],
       }));
 
-      setClientes(clientesWithAreas);
-      console.log("✅ Datos del coordinador cargados:", clientesWithAreas);
+      setClientesParaAprobacion(clientesForAprobacion);
+      console.log("✅ Áreas del coordinador cargadas para APROBAR reportes (CON FILTRO):", clientesForAprobacion);
     } catch (error) {
       console.error("❌ Error al cargar datos:", error);
     } finally {

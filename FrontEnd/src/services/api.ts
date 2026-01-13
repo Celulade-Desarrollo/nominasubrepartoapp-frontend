@@ -46,6 +46,16 @@ export interface IntermediArea {
     nombre_area?: string;
 }
 
+export interface CompanyCoordinator {
+    id: number;
+    created_at: string;
+    elemento_pep: string;
+    documento_id_coordinador: number;
+    company_id?: string;
+    nombre_company?: string;
+    company_elemento_pep?: string;
+}
+
 export interface Reporte {
     id: number;
     created_at: string;
@@ -111,10 +121,11 @@ export const companiesAPI = {
 
 export const areasEnCompanyAPI = {
     getAll: () => fetchAPI<IntermediArea[]>('/AreasEnCompany'),
+    getAllCompanies: () => fetchAPI<IntermediArea[]>('/AreasEnCompany/companies'),
     getById: (id: number) => fetchAPI<IntermediArea>(`/AreasEnCompany/${id}`),
     getByCompany: (companyId: string) => fetchAPI<IntermediArea[]>(`/AreasEnCompany/company/${companyId}`),
-    getByCoordinator: (coordinadorId: string) => fetchAPI<IntermediArea[]>(`/AreasEnCompany/coordinator/${coordinadorId}/companies`),
-    getAreasByCoordinator: (coordinadorId: string) => fetchAPI<Area[]>(`/AreasEnCompany/coordinator/${coordinadorId}/areas`),
+    getByCoordinator: (coordinadorId: string | number) => fetchAPI<IntermediArea[]>(`/AreasEnCompany/coordinator/${coordinadorId}/companies`),
+    getAreasByCoordinator: (coordinadorId: string | number) => fetchAPI<Area[]>(`/AreasEnCompany/coordinator/${coordinadorId}/areas`),
     create: (data: { company_cliente: string; area_cliente: number }) =>
         fetchAPI<IntermediArea>('/AreasEnCompany', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: { company_cliente?: string; area_cliente?: number }) =>
@@ -139,6 +150,21 @@ export const reportesAPI = {
         fetchAPI<Reporte>(`/Reportes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) =>
         fetchAPI<{ message: string; deleted: Reporte }>(`/Reportes/${id}`, { method: 'DELETE' }),
+};
+
+// =====================
+// COMPANY COORDINATOR API
+// =====================
+
+export const companyCoordinatorAPI = {
+    getCompaniesByCoordinator: (coordinadorId: string | number) =>
+        fetchAPI<CompanyCoordinator[]>(`/CompanyCoordinator/coordinator/${coordinadorId}`),
+    getCoordinatorsByCompany: (elementoPep: string) =>
+        fetchAPI<any[]>(`/CompanyCoordinator/company/${elementoPep}`),
+    create: (data: { elemento_pep: string; documento_id_coordinador: number }) =>
+        fetchAPI<CompanyCoordinator>('/CompanyCoordinator', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+        fetchAPI<{ message: string; deleted: CompanyCoordinator }>(`/CompanyCoordinator/${id}`, { method: 'DELETE' }),
 };
 
 // =====================

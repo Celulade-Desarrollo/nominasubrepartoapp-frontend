@@ -5,6 +5,7 @@ import { LogOut, Building2, Download } from 'lucide-react';
 import { ClientesManager } from './ClientesManager';
 import { ReportDownload } from './ReportDownload';
 import type { User } from '../App';
+import compunetLogo from '../assets/images/compunet_logo.jpg';
 
 interface AdminDashboardProps {
   user: User;
@@ -18,9 +19,16 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Panel Administrativo</h1>
-              <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+            <div className="flex items-center gap-4">
+              <img
+                src={compunetLogo}
+                alt="Compunet Logo"
+                className="h-10 w-auto object-contain"
+              />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Panel Administrativo</h1>
+                <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+              </div>
             </div>
             <Button variant="outline" onClick={onLogout}>
               <LogOut className="w-4 h-4 mr-2" />

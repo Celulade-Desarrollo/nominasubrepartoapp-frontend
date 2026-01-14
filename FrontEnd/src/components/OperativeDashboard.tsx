@@ -9,6 +9,7 @@ import { HoursHistoryByDate, HoursRecord } from './HoursHistoryByDate';
 import { Alert, AlertDescription } from './ui/alert';
 import { companiesAPI, areasEnCompanyAPI, reportesAPI } from '../services/api';
 import type { User } from '../App';
+import compunetLogo from '../assets/images/compunet_logo.jpg';
 
 interface OperativeDashboardProps {
   user: User;
@@ -46,7 +47,7 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
       setLoading(true);
       // Load ALL companies and their areas (unrestricted)
       const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
-      
+
       // Group by company
       const companiesMap = new Map<string, Cliente>();
       allCompaniesWithAreas.forEach((item: any) => {
@@ -204,9 +205,16 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-gray-900">Registro de Horas</h1>
-              <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+            <div className="flex items-center gap-4">
+              <img
+                src={compunetLogo}
+                alt="Compunet Logo"
+                className="h-10 w-auto object-contain"
+              />
+              <div>
+                <h1 className="text-gray-900">Registro de Horas</h1>
+                <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+              </div>
             </div>
             <Button variant="outline" onClick={onLogout}>
               <LogOut className="w-4 h-4 mr-2" />

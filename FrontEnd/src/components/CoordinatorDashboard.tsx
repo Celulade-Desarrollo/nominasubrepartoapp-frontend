@@ -10,6 +10,7 @@ import { PayrollReview } from './PayrollReview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { areasEnCompanyAPI, reportesAPI } from '../services/api';
 import type { User } from '../App';
+import compunetLogo from '../assets/images/compunet_logo.jpg';
 
 interface CoordinatorDashboardProps {
   user: User;
@@ -151,20 +152,28 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-gray-900">Panel de Coordinador</h1>
-              <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+            <div className="flex items-center gap-4">
+              <img
+                src={compunetLogo}
+                alt="Compunet Logo"
+                className="h-10 w-auto object-contain"
+              />
+              <div>
+                <h1 className="text-gray-900">Panel de Coordinador</h1>
+                <p className="text-sm text-gray-500">Bienvenido, {user.nombre}</p>
+              </div>
             </div>
+
             <Button variant="outline" onClick={onLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
             </Button>
           </div>
-        </div>
-      </header>
+        </div >
+      </header >
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      < main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" >
         <Tabs defaultValue="hours" className="space-y-6">
           <TabsList className="flex w-full border-b border-gray-200 p-0 bg-transparent h-auto">
             <TabsTrigger
@@ -228,7 +237,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
             <CoordinatorConfig coordinatorId={user.cedula} />
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }

@@ -84,6 +84,24 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
       setClientesParaAprobacion(clientesForAprobacion);
       console.log("✅ Áreas del coordinador cargadas para APROBAR reportes (CON FILTRO):", clientesForAprobacion);
+
+      // PARTE 3: Cargar reportes existentes del coordinador (para mostrar en "Mis Horas")
+      const documentoId = parseInt(user.cedula);
+      console.log('📊 Cargando reportes existentes del coordinador para documento_id:', documentoId);
+      const reportes = await reportesAPI.getByDocumento(documentoId);
+      console.log('📋 Reportes cargados:', reportes);
+
+      const mappedRecords: HoursRecord[] = reportes.map(r => ({
+        clienteId: r.cliente,
+        clienteNombre: r.nombre_company || 'Desconocido',
+        horas: parseFloat(r.horas.toString()),
+        fecha: r.fecha_trabajada ? new Date(r.fecha_trabajada).toISOString().split('T')[0] : new Date(r.created_at).toISOString().split('T')[0],
+        areaCliente: r.nombre_area,
+        aprobado: r.aprobado
+      }));
+
+      console.log('✅ Registros mapeados:', mappedRecords);
+      setHoursRecords(mappedRecords);
     } catch (error) {
       console.error("❌ Error al cargar datos:", error);
     } finally {

@@ -9,6 +9,7 @@ import { Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { HoursRecord } from './HoursHistoryByDate';
+import { areasEnCompanyAPI } from '../services/api';
 
 interface Cliente {
   id: string;
@@ -40,6 +41,8 @@ export function CalendarHoursEntry({
   const [selectedCliente, setSelectedCliente] = useState<string>('');
   const [horas, setHoras] = useState<string>('');
   const [areaCliente, setAreaCliente] = useState<string>('');
+  const [dynamicAreas, setDynamicAreas] = useState<string[]>([]);
+  const [loadingAreas, setLoadingAreas] = useState(false);
 
   // Effect to handle edit mode
   useEffect(() => {
@@ -51,6 +54,50 @@ export function CalendarHoursEntry({
       setDialogOpen(true);
     }
   }, [recordToEdit]);
+
+  // Effect para cargar áreas dinámicamente cuando cambia el cliente
+  useEffect(() => {
+    const loadAreasForCliente = async () => {
+      if (!selectedCliente) {
+        setDynamicAreas([]);
+        return;
+      }
+
+      try {
+        setLoadingAreas(true);
+        console.log("📍 Cargando áreas para cliente (elementoPEP):", selectedCliente);
+        
+        // SIEMPRE consultar el backend para garantizar datos frescos y correctos
+        console.log("📡 Obteniendo áreas del backend para:", selectedCliente);
+        const areasData = await areasEnCompanyAPI.getByCompany(selectedCliente);
+        
+        console.log("📊 Datos del backend:", areasData);
+        
+        const areaNames = areasData
+          .map(a => {
+            console.log("  - área:", a.nombre_area, "id:", a.area_cliente);
+            return a.nombre_area;
+          })
+          .filter((name): name is string => name !== null && name !== undefined && name.trim().length > 0)
+          .map(name => name.trim());
+        
+        console.log("✅ Áreas obtenidas y procesadas:", areaNames);
+        setDynamicAreas(areaNames);
+        
+        // Si no hay áreas, mostrar advertencia
+        if (areaNames.length === 0) {
+          console.warn("⚠️ No hay áreas disponibles para el cliente:", selectedCliente);
+        }
+      } catch (err) {
+        console.error("❌ Error al cargar áreas:", err);
+        setDynamicAreas([]);
+      } finally {
+        setLoadingAreas(false);
+      }
+    };
+
+    loadAreasForCliente();
+  }, [selectedCliente, clientes]);
 
   // Handle dialog close (reset edit state)
   const handleOpenChange = (open: boolean) => {
@@ -78,16 +125,49 @@ export function CalendarHoursEntry({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedCliente && horas && selectedDate && areaCliente) {
-      onSave(selectedCliente, parseFloat(horas), selectedDate, areaCliente);
-      setDialogOpen(false);
-      // Reset is handled by useEffect or handleOpenChange if strictly needed, 
-      // but usually good to reset here too for creating new entries
-      if (!recordToEdit) {
-        setSelectedCliente('');
-        setHoras('');
-        setAreaCliente('');
-      }
+    
+    // Validaciones estrictas
+    if (!selectedCliente) {
+      console.error("❌ Validación fallida: No hay cliente seleccionado");
+      return;
+    }
+
+    if (!areaCliente || !areaCliente.trim()) {
+      console.error("❌ Validación fallida: No hay área seleccionada", { areaCliente, filteredAreas, dynamicAreas });
+      return;
+    }
+
+    if (!horas || parseFloat(horas) <= 0) {
+      console.error("❌ Validación fallida: Horas inválidas", { horas });
+      return;
+    }
+
+    if (!selectedDate) {
+      console.error("❌ Validación fallida: No hay fecha seleccionada");
+      return;
+    }
+
+    const areaClienteValue = areaCliente.trim();
+    
+    // Log detallado antes de guardar
+    console.log("📝 Guardando reporte con:", {
+      cliente: selectedCliente,
+      area: areaClienteValue,
+      horas: parseFloat(horas),
+      fecha: selectedDate.toISOString().split('T')[0],
+    });
+
+    onSave(selectedCliente, parseFloat(horas), selectedDate, areaClienteValue);
+    
+    console.log("✅ Reporte guardado");
+    setDialogOpen(false);
+    
+    // Reset is handled by useEffect or handleOpenChange if strictly needed, 
+    // but usually good to reset here too for creating new entries
+    if (!recordToEdit) {
+      setSelectedCliente('');
+      setHoras('');
+      setAreaCliente('');
     }
   };
 
@@ -104,11 +184,25 @@ export function CalendarHoursEntry({
 
   const handleClienteChange = (newClienteId: string) => {
     setSelectedCliente(newClienteId);
-    // Si hay un área seleccionada que no pertenece a este cliente, limpiar la selección del área
-    const cliente = clientes.find(c => c.elementoPEP === newClienteId);
-    if (cliente && areaCliente && !cliente.areas.includes(areaCliente)) {
-      setAreaCliente('');
+    // Validar si el área actual es válida para el nuevo cliente
+    // Si es válida, mantenerla; si no, limpiarla
+    if (areaCliente) {
+      const nuevoCliente = clientes.find(c => c.elementoPEP === newClienteId);
+      if (nuevoCliente && !nuevoCliente.areas.includes(areaCliente)) {
+        // El área NO existe en el nuevo cliente, limpiarla
+        setAreaCliente('');
+      }
+      // Si el área EXISTS, la mantenemos (no hacemos nada)
     }
+  };
+
+  // Función helper para limpiar y validar áreas
+  const cleanAreas = (areas: string[]) => {
+    return Array.from(new Set(
+      areas
+        .filter(area => area && typeof area === 'string' && area.trim().length > 0)
+        .map(area => area.trim())
+    )).sort();
   };
 
   const getHoursForDate = (date: Date) => {
@@ -120,18 +214,20 @@ export function CalendarHoursEntry({
 
   const selectedClienteData = clientes.find(c => c.elementoPEP === selectedCliente);
 
-  // Obtener todas las áreas únicas de todos los clientes
-  const allAreas = Array.from(new Set(clientes.flatMap(c => c.areas))).sort();
+  // Obtener todas las áreas únicas de todos los clientes (para el dropdown de área)
+  const allAreas = cleanAreas(clientes.flatMap(c => c.areas || []));
 
   // Filtrar clientes basado en el área seleccionada
   const filteredClientes = areaCliente
-    ? clientes.filter(c => c.areas.includes(areaCliente))
+    ? clientes.filter(c => c.areas && c.areas.includes(areaCliente))
     : clientes;
 
-  // Filtrar áreas basado en el cliente seleccionado
-  const filteredAreas = selectedCliente
-    ? selectedClienteData?.areas || []
-    : allAreas;
+  // Usar áreas dinámicas cargadas del backend, o áreas estáticas si no hay dinámicas
+  const filteredAreas = cleanAreas(
+    selectedCliente && dynamicAreas.length > 0
+      ? dynamicAreas
+      : (selectedCliente ? selectedClienteData?.areas || [] : allAreas)
+  );
 
   return (
     <>
@@ -259,11 +355,13 @@ export function CalendarHoursEntry({
                   <SelectValue placeholder="Selecciona un área" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredAreas.map((area) => (
-                    <SelectItem key={area} value={area}>
-                      {area}
-                    </SelectItem>
-                  ))}
+                  {filteredAreas
+                    .filter(area => area && area.trim() && typeof area === 'string')
+                    .map((area) => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500">
@@ -291,7 +389,8 @@ export function CalendarHoursEntry({
               {selectedClienteData && (
                 <div className="text-sm text-gray-600 space-y-1">
                   <p>Elemento PEP: {selectedClienteData.elementoPEP}</p>
-                  <p>Áreas: {selectedClienteData.areas.join(', ')}</p>
+                  <p>Áreas: {(dynamicAreas.length > 0 ? dynamicAreas : selectedClienteData.areas).join(', ') || 'Cargando...'}</p>
+                  {loadingAreas && <p className="text-xs text-blue-600">Cargando áreas...</p>}
                 </div>
               )}
               <p className="text-xs text-gray-500">

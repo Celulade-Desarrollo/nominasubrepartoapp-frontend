@@ -164,7 +164,7 @@ export default function App() {
               <p className="text-gray-600">Cargando datos del usuario...</p>
             </>
           )}
-+        </div>
+        </div>
       </div>
     );
   }
@@ -172,6 +172,7 @@ export default function App() {
   // Usuario autenticado y con datos cargados - mostramos el dashboard correspondiente
   return (
     <div className="min-h-screen bg-gray-50">
+      {console.log('🎯 Perfil del usuario:', user.perfil, '| Documento ID:', user.documento_id, '| Cedula:', user.cedula)}
       {user.perfil === "administrativo" && (
         <AdminDashboard user={user} onLogout={handleLogout} />
       )}

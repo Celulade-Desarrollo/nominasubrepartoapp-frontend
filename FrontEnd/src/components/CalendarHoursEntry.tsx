@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Save, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
+import { Alert, AlertDescription } from './ui/alert';
+import { Save, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { HoursRecord } from './HoursHistoryByDate';
 import { areasEnCompanyAPI } from '../services/api';
+
+// Límite semanal de horas (Lun-Jue: 10h, Vie: 9h = 42h total)
+const WEEKLY_HOURS_LIMIT = 42;
 
 interface Cliente {
   id: string;
@@ -43,6 +47,35 @@ export function CalendarHoursEntry({
   const [areaCliente, setAreaCliente] = useState<string>('');
   const [dynamicAreas, setDynamicAreas] = useState<string[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
+  const [weeklyHoursError, setWeeklyHoursError] = useState<string | null>(null);
+
+  // Calcular horas de la semana para una fecha dada
+  const getWeeklyHours = (date: Date): number => {
+    const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Lunes como inicio
+    const weekEnd = endOfWeek(date, { weekStartsOn: 1 }); // Domingo como fin
+
+    return existingRecords
+      .filter(record => {
+        const recordDate = new Date(record.fecha + 'T12:00:00');
+        return isWithinInterval(recordDate, { start: weekStart, end: weekEnd });
+      })
+      .reduce((sum, record) => sum + record.horas, 0);
+  };
+
+  // Calcular horas disponibles para la semana seleccionada
+  const weeklyHoursInfo = useMemo(() => {
+    if (!selectedDate) return { used: 0, remaining: WEEKLY_HOURS_LIMIT };
+
+    const usedHours = getWeeklyHours(selectedDate);
+    // Si estamos editando, restar las horas del registro que editamos
+    const editingHours = recordToEdit ? recordToEdit.horas : 0;
+    const adjustedUsed = usedHours - editingHours;
+
+    return {
+      used: adjustedUsed,
+      remaining: WEEKLY_HOURS_LIMIT - adjustedUsed
+    };
+  }, [selectedDate, existingRecords, recordToEdit]);
 
   // Effect to handle edit mode
   useEffect(() => {
@@ -65,15 +98,15 @@ export function CalendarHoursEntry({
 
       try {
         setLoadingAreas(true);
-        
+
         // SIEMPRE consultar el backend para garantizar datos frescos y correctos
         const areasData = await areasEnCompanyAPI.getByCompany(selectedCliente);
-        
+
         const areaNames = areasData
           .map(a => a.nombre_area)
           .filter((name): name is string => name !== null && name !== undefined && name.trim().length > 0)
           .map(name => name.trim());
-        
+
         setDynamicAreas(areaNames);
       } catch (err) {
         console.error("❌ Error al cargar áreas:", err);
@@ -112,7 +145,8 @@ export function CalendarHoursEntry({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setWeeklyHoursError(null);
+
     // Validaciones estrictas
     if (!selectedCliente) {
       return;
@@ -130,11 +164,22 @@ export function CalendarHoursEntry({
       return;
     }
 
+    const horasNumero = parseFloat(horas);
+
+    // Validar límite semanal de 42 horas
+    if (horasNumero > weeklyHoursInfo.remaining) {
+      setWeeklyHoursError(
+        `No puedes registrar ${horasNumero}h. Solo te quedan ${weeklyHoursInfo.remaining}h disponibles esta semana (límite: ${WEEKLY_HOURS_LIMIT}h).`
+      );
+      return;
+    }
+
     const areaClienteValue = areaCliente.trim();
 
-    onSave(selectedCliente, parseFloat(horas), selectedDate, areaClienteValue);
+    onSave(selectedCliente, horasNumero, selectedDate, areaClienteValue);
     setDialogOpen(false);
-    
+    setWeeklyHoursError(null);
+
     // Reset is handled by useEffect or handleOpenChange if strictly needed, 
     // but usually good to reset here too for creating new entries
     if (!recordToEdit) {
@@ -352,11 +397,13 @@ export function CalendarHoursEntry({
                   <SelectValue placeholder="Selecciona un cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredClientes.map((cliente, idx) => (
-                    <SelectItem key={`cliente-${idx}-${cliente.elementoPEP}`} value={cliente.elementoPEP}>
-                      {cliente.nombre}
-                    </SelectItem>
-                  ))}
+                  {filteredClientes
+                    .filter(cliente => cliente.elementoPEP != null && cliente.elementoPEP !== '')
+                    .map((cliente) => (
+                      <SelectItem key={`cliente-${cliente.id}-${cliente.elementoPEP}`} value={cliente.elementoPEP}>
+                        {cliente.nombre}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               {selectedClienteData && (
@@ -387,6 +434,32 @@ export function CalendarHoursEntry({
                 required
               />
             </div>
+
+            {/* Información de horas semanales */}
+            <div className={`rounded-lg p-3 text-sm ${weeklyHoursInfo.remaining < 10
+                ? 'bg-amber-50 border border-amber-200'
+                : 'bg-blue-50 border border-blue-200'
+              }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Horas esta semana:</span>
+                <span className={`font-bold ${weeklyHoursInfo.remaining < 10 ? 'text-amber-700' : 'text-blue-700'}`}>
+                  {weeklyHoursInfo.used}h / {WEEKLY_HOURS_LIMIT}h
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                Disponibles: <span className="font-semibold">{weeklyHoursInfo.remaining}h</span>
+              </div>
+            </div>
+
+            {/* Error de límite semanal */}
+            {weeklyHoursError && (
+              <Alert variant="destructive" className="bg-red-50 border-red-300">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-red-700">
+                  {weeklyHoursError}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="bg-[#bbd531]/10 border border-[#bbd531]/30 rounded-lg p-3 text-sm text-gray-700">
               💡 Puedes registrar fracciones de hora (ej: 0.5, 1.5, 2.5)

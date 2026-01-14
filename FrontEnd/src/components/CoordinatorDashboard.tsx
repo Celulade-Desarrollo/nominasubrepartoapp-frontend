@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { LogOut, Clock, CheckCircle, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { CoordinatorConfig } from './CoordinatorConfig';
+import { LogOut, Clock, CheckCircle, Loader2, Settings } from 'lucide-react';
 import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
 import { PayrollReview } from './PayrollReview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { companiesAPI, areasEnCompanyAPI, reportesAPI } from '../services/api';
+import { areasEnCompanyAPI, reportesAPI } from '../services/api';
 import type { User } from '../App';
 
 interface CoordinatorDashboardProps {
@@ -34,7 +35,6 @@ interface Cliente {
 export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardProps) {
   const [hoursRecords, setHoursRecords] = useState<HoursRecord[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [clientesParaAprobacion, setClientesParaAprobacion] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,12 +44,12 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      const coordinadorDocumentoId = String(user.documento_id);
-      
+
+
+
       // PARTE 1: Cargar TODAS las empresas y áreas para GENERAR reportes (SIN FILTRO)
       const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
-      
+
       // Agrupar por empresa
       const companiesMap = new Map<string, Cliente>();
       allCompaniesWithAreas.forEach((item: any) => {
@@ -70,17 +70,9 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       const allClientesWithAreas = Array.from(companiesMap.values());
       setClientes(allClientesWithAreas);
 
-      // PARTE 2: Cargar solo las áreas del coordinador para APROBAR reportes (CON FILTRO)
-      const companiesData = await areasEnCompanyAPI.getByCoordinator(coordinadorDocumentoId);
 
-      const clientesForAprobacion: Cliente[] = companiesData.map((company) => ({
-        id: company.company_cliente,
-        nombre: company.nombre_company,
-        elementoPEP: company.elemento_pep,
-        areas: [company.nombre_area],
-      }));
 
-      setClientesParaAprobacion(clientesForAprobacion);
+
 
       // PARTE 3: Cargar reportes existentes del coordinador (para mostrar en "Mis Horas")
       const documentoId = parseInt(user.cedula);
@@ -140,10 +132,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
     }
   };
 
-  // Filtrar los reportes para que solo muestren los de áreas asignadas al coordinador (para la aprobación)
-  const filteredHoursRecords = hoursRecords.filter(r => 
-    clientesParaAprobacion.some(c => c.id === r.clienteId && c.areas.includes(r.areaCliente || ''))
-  );
+
 
   const totalHoras = hoursRecords.reduce((sum, record) => sum + record.horas, 0);
 
@@ -177,14 +166,27 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="hours" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="hours">
+          <TabsList className="flex w-full border-b border-gray-200 p-0 bg-transparent h-auto">
+            <TabsTrigger
+              value="hours"
+              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
+            >
               <Clock className="w-4 h-4 mr-2" />
               Mis Horas
             </TabsTrigger>
-            <TabsTrigger value="review">
+            <TabsTrigger
+              value="review"
+              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
+            >
               <CheckCircle className="w-4 h-4 mr-2" />
               Revisar Nómina
+            </TabsTrigger>
+            <TabsTrigger
+              value="config"
+              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Configuración
             </TabsTrigger>
           </TabsList>
 
@@ -220,6 +222,10 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
           <TabsContent value="review">
             <PayrollReview coordinatorId={user.cedula} />
+          </TabsContent>
+
+          <TabsContent value="config">
+            <CoordinatorConfig coordinatorId={user.cedula} />
           </TabsContent>
         </Tabs>
       </main>

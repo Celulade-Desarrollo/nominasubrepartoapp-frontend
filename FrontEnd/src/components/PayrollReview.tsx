@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { reportesAPI, type Reporte } from '../services/api';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface PayrollReviewProps {
@@ -20,6 +20,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Navigation State
   const [view, setView] = useState<ViewMode>('calendar');
@@ -45,21 +46,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     }
   };
 
-  const handleUpdateStatus = async (id: number, newStatus: number) => {
-    try {
-      setProcessingId(id);
-      await reportesAPI.update(id, { aprobado: newStatus });
 
-      // Update local state
-      setReports(reports.map(report =>
-        report.id === id ? { ...report, aprobado: newStatus } : report
-      ));
-    } catch (err) {
-      console.error('Error updating report status:', err);
-    } finally {
-      setProcessingId(null);
-    }
-  };
 
   // Calendar Helpers
   const monthStart = startOfMonth(currentMonth);
@@ -97,6 +84,139 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
       setView('employees');
     }
   };
+
+  // Bulk approval handler - approve/reject all pending reports for a date
+  const handleBulkApproval = async (date: Date, newStatus: number) => {
+    const dayReports = getReportsForDate(date);
+    const pendingReports = dayReports.filter(r => r.aprobado !== 1 && r.aprobado !== 2);
+
+    if (pendingReports.length === 0) return;
+
+    try {
+      setBulkProcessing(true);
+
+      // Update all pending reports
+      await Promise.all(
+        pendingReports.map(report =>
+          reportesAPI.update(report.id, {
+            aprobado: newStatus,
+            // @ts-ignore - The API supports this but type definition might lag
+            aprobadopor: parseInt(coordinatorId)
+          })
+        )
+      );
+
+      // Refresh data to get audit info properly
+      await fetchReports();
+    } catch (err) {
+      console.error('Error en aprobación masiva:', err);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // Get pending reports count for a date
+  const getPendingCountForDate = (date: Date) => {
+    const dayReports = getReportsForDate(date);
+    return dayReports.filter(r => r.aprobado !== 1 && r.aprobado !== 2).length;
+  };
+
+  // Bulk week approval handler - approve/reject all pending reports for a week
+  const handleBulkWeekApproval = async (weekStart: Date, weekEnd: Date, newStatus: number) => {
+    const pendingReportsInWeek = reports.filter(report => {
+      if (!report.fecha_trabajada) return false;
+      if (report.aprobado === 1 || report.aprobado === 2) return false;
+      const reportDate = parseISO(report.fecha_trabajada);
+      return isWithinInterval(reportDate, { start: weekStart, end: weekEnd });
+    });
+
+    if (pendingReportsInWeek.length === 0) return;
+
+    try {
+      setBulkProcessing(true);
+
+      // Update all pending reports in the week
+      await Promise.all(
+        pendingReportsInWeek.map(report =>
+          reportesAPI.update(report.id, {
+            aprobado: newStatus,
+            // @ts-ignore
+            aprobadopor: parseInt(coordinatorId)
+          })
+        )
+      );
+
+      // Refresh data
+      await fetchReports();
+    } catch (err) {
+      console.error('Error en aprobación semanal masiva:', err);
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  interface WeekData {
+    weekStart: Date;
+    weekEnd: Date;
+    totalHours: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    byClient: Map<string, { total: number; approved: number; pending: number; rejected: number; name: string }>;
+  }
+
+  // Weekly totals calculation with client breakdown
+  const weeklyTotals = useMemo(() => {
+    const weeks = new Map<string, WeekData>();
+
+    reports.forEach(report => {
+      if (!report.fecha_trabajada) return;
+      const reportDate = parseISO(report.fecha_trabajada);
+      const weekStart = startOfWeek(reportDate, { weekStartsOn: 1 }); // Lunes
+      const weekEnd = endOfWeek(reportDate, { weekStartsOn: 1 });
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      const clientKey = report.cliente || 'Sin Cliente';
+      const clientName = report.nombre_company || clientKey;
+
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, {
+          weekStart,
+          weekEnd,
+          totalHours: 0,
+          approved: 0,
+          pending: 0,
+          rejected: 0,
+          byClient: new Map()
+        });
+      }
+
+      const week = weeks.get(weekKey)!;
+
+      // Update week totals
+      week.totalHours += report.horas;
+      if (report.aprobado === 1) week.approved += report.horas;
+      else if (report.aprobado === 2) week.rejected += report.horas;
+      else week.pending += report.horas;
+
+      // Update client totals
+      if (!week.byClient.has(clientKey)) {
+        week.byClient.set(clientKey, { total: 0, approved: 0, pending: 0, rejected: 0, name: clientName });
+      }
+      const clientData = week.byClient.get(clientKey)!;
+      clientData.total += report.horas;
+      if (report.aprobado === 1) clientData.approved += report.horas;
+      else if (report.aprobado === 2) clientData.rejected += report.horas;
+      else clientData.pending += report.horas;
+    });
+
+    // Filter to show only weeks in current month view
+    return Array.from(weeks.values())
+      .filter(week => {
+        return isWithinInterval(week.weekStart, { start: monthStart, end: monthEnd }) ||
+          isWithinInterval(week.weekEnd, { start: monthStart, end: monthEnd });
+      })
+      .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
+  }, [reports, currentMonth]);
 
   // Employee List Helpers
   const getEmployeesForSelectedDate = () => {
@@ -164,6 +284,11 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {report.horas} horas</span>
                     <span>{report.nombre_area}</span>
                   </div>
+                  {(report.aprobado === 1 || report.aprobado === 2) && report.nombre_aprobador && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      {report.aprobado === 1 ? 'Aprobado' : 'Rechazado'} por: {report.nombre_aprobador}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -176,7 +301,21 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       <Button
                         size="sm"
                         className="bg-[#303483] hover:bg-[#303483]/90"
-                        onClick={() => handleUpdateStatus(report.id, 1)}
+                        onClick={async () => {
+                          try {
+                            setProcessingId(report.id);
+                            await reportesAPI.update(report.id, {
+                              aprobado: 1,
+                              // @ts-ignore
+                              aprobadopor: parseInt(coordinatorId)
+                            });
+                            await fetchReports();
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setProcessingId(null);
+                          }
+                        }}
                         disabled={processingId === report.id}
                       >
                         {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
@@ -185,7 +324,21 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => handleUpdateStatus(report.id, 2)}
+                        onClick={async () => {
+                          try {
+                            setProcessingId(report.id);
+                            await reportesAPI.update(report.id, {
+                              aprobado: 2,
+                              // @ts-ignore
+                              aprobadopor: parseInt(coordinatorId)
+                            });
+                            await fetchReports();
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setProcessingId(null);
+                          }
+                        }}
                         disabled={processingId === report.id}
                       >
                         {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
@@ -220,6 +373,29 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
               </CardDescription>
             </div>
           </div>
+          {/* Botones de aprobación masiva del día */}
+          {getPendingCountForDate(selectedDate) > 0 && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="bg-[#303483] hover:bg-[#303483]/90"
+                onClick={() => handleBulkApproval(selectedDate, 1)}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCheck className="w-4 h-4 mr-1" />}
+                Aprobar Todos
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleBulkApproval(selectedDate, 2)}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XOctagon className="w-4 h-4 mr-1" />}
+                Rechazar Todos
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -270,7 +446,19 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Revisión de Nómina</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Revisión de Nómina
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={fetchReports}
+                className="h-8 w-8 ml-2"
+                title="Refrescar datos"
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </CardTitle>
             <CardDescription>
               Selecciona un día para revisar los reportes de los empleados
             </CardDescription>
@@ -318,6 +506,15 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           </div>
         </div>
 
+        {reports.length === 0 && !loading && (
+          <div className="mb-6 p-4 bg-blue-50 text-blue-800 rounded-md border border-blue-100 flex flex-col items-center justify-center text-center">
+            <p className="font-medium">No se encontraron reportes</p>
+            <p className="text-sm mt-1">
+              Si deberías ver horas aquí, asegúrate de tener asignados los <span className="font-bold">Clientes</span> y <span className="font-bold">Áreas</span> correspondientes en la pestaña de <span className="font-bold">Configuración</span>.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-7 gap-2">
           {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
             <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
@@ -332,8 +529,10 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           {daysInMonth.map((day) => {
             const status = dayStatus(day);
             const isToday = isSameDay(day, new Date());
-            const isFuture = day > new Date();
             const hasContent = status !== null;
+            const pendingCount = getPendingCountForDate(day);
+            const dayReports = getReportsForDate(day);
+            const totalHoursDay = dayReports.reduce((sum, r) => sum + r.horas, 0);
 
             let statusColor = "bg-transparent";
             if (status == 'pending') statusColor = "blue";
@@ -342,30 +541,159 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
             else if (status == 'mixed') statusColor = "orange";
 
             return (
-              <button
-                key={day.toString()}
-                onClick={() => handleDayClick(day)}
-                disabled={!hasContent}
-                className={`
-                    relative min-h-[80px] p-2 rounded-lg border transition-all text-left flex flex-col justify-between
-                    ${!hasContent ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-default' : 'hover:border-[#303483] hover:shadow-md cursor-pointer bg-white border-gray-200'}
-                    ${isToday ? 'ring-2 ring-[#303483]/20' : ''}
-                  `}
-              >
-                <span className={`text-sm font-medium ${isToday ? 'text-[#303483]' : ''}`}>
-                  {format(day, 'd')}
-                </span>
+              <div key={day.toString()} className="relative">
+                <button
+                  onClick={() => handleDayClick(day)}
+                  disabled={!hasContent}
+                  className={`
+                      w-full min-h-[80px] p-2 rounded-lg border transition-all text-left flex flex-col justify-between
+                      ${!hasContent ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-default' : 'hover:border-[#303483] hover:shadow-md cursor-pointer bg-white border-gray-200'}
+                      ${isToday ? 'ring-2 ring-[#303483]/20' : ''}
+                    `}
+                >
+                  <span className={`text-sm font-medium ${isToday ? 'text-[#303483]' : ''}`}>
+                    {format(day, 'd')}
+                  </span>
+
+                  {hasContent && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <div className="text-xs text-gray-600">{totalHoursDay}h</div>
+                      <div className="flex items-center justify-between">
+                        {pendingCount > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                            {pendingCount} pend.
+                          </span>
+                        )}
+                        <div className={`w-3 h-3 rounded-full ml-auto`} style={{ backgroundColor: statusColor }} title={status || ''} />
+                      </div>
+                    </div>
+                  )}
+                </button>
+
+                {/* Botones de aprobación rápida si hay pendientes */}
+                {hasContent && pendingCount > 0 && (
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity bg-white rounded-full shadow-lg p-0.5 z-10"
+                    style={{ opacity: bulkProcessing ? 0.5 : undefined }}>
 
 
-                {hasContent && (
-                  <div className="flex justify-end mt-2">
-                    <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: statusColor }} title={status || ''} />
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
+
+        {/* Resumen de Horas Semanales */}
+        {weeklyTotals.length > 0 && (
+          <div className="mt-8 border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-[#303483]" />
+              Resumen de Horas por Semana
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {weeklyTotals.map((week, idx) => (
+                <div key={idx} className="bg-white border rounded-lg p-4 shadow-sm">
+                  <div className="text-sm text-gray-500 mb-2">
+                    {format(week.weekStart, "d MMM", { locale: es })} - {format(week.weekEnd, "d MMM", { locale: es })}
+                  </div>
+                  <div className="text-2xl font-bold text-[#303483]">
+                    {week.totalHours}h
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600">✓ Aprobadas:</span>
+                      <span className="font-medium">{week.approved}h</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-blue-600">⏳ Pendientes:</span>
+                      <span className="font-medium">{week.pending}h</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-red-600">✗ Rechazadas:</span>
+                      <span className="font-medium">{week.rejected}h</span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                    {week.approved > 0 && (
+                      <div
+                        className="bg-[#bbd531] h-full"
+                        style={{ width: `${(week.approved / week.totalHours) * 100}%` }}
+                      />
+                    )}
+                    {week.pending > 0 && (
+                      <div
+                        className="bg-blue-400 h-full"
+                        style={{ width: `${(week.pending / week.totalHours) * 100}%` }}
+                      />
+                    )}
+                    {week.rejected > 0 && (
+                      <div
+                        className="bg-red-400 h-full"
+                        style={{ width: `${(week.rejected / week.totalHours) * 100}%` }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Desglose por cliente */}
+                  <div className="mt-4 pt-3 border-t space-y-3">
+                    {Array.from(week.byClient.entries()).map(([key, data]) => (
+                      <div key={key} className="text-sm border-b border-dashed pb-2 last:border-0 last:pb-0">
+                        <div className="font-medium text-gray-700 mb-1">{data.name}</div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Tot: {data.total}h</span>
+                          <span className="text-green-600">Apr: {data.approved}h</span>
+                          <span className="text-blue-600">Pend: {data.pending}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Botones de aprobación/rechazo de semana */}
+                  {week.pending > 0 && (
+                    <div className="mt-4 pt-3 border-t flex gap-2">
+
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-[#303483] hover:bg-[#303483]/90 text-white"
+                        onClick={() => handleBulkWeekApproval(week.weekStart, week.weekEnd, 1)}
+                        disabled={bulkProcessing}
+                      >
+                        {bulkProcessing ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                        ) : (
+                          <CheckCheck className="w-4 h-4 mr-1" />
+                        )}
+                        Aprobar Semana
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="flex-1"
+                        onClick={() => handleBulkWeekApproval(week.weekStart, week.weekEnd, 2)}
+                        disabled={bulkProcessing}
+                      >
+                        {bulkProcessing ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                        ) : (
+                          <XOctagon className="w-4 h-4 mr-1" />
+                        )}
+                        Rechazar
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Indicador cuando todo está aprobado */}
+                  {week.pending === 0 && week.approved > 0 && week.rejected === 0 && (
+                    <div className="mt-4 pt-3 border-t text-center text-sm text-green-600 font-medium">
+                      ✓ Semana completamente aprobada
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

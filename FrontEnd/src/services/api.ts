@@ -65,9 +65,11 @@ export interface Reporte {
     documento_id: number;
     area_trabajo: number;
     aprobado?: number; // 0: pendiente, 1: aprobado, 2: rechazado
+    aprobadopor?: number;
     nombre_company?: string;
     nombre_area?: string;
     nombre_empleado?: string;
+    nombre_aprobador?: string;
 }
 
 export interface Rol {
@@ -168,6 +170,19 @@ export const companyCoordinatorAPI = {
 };
 
 // =====================
+// COORDINATOR AREAS API
+// =====================
+
+export const coordinatorAreasAPI = {
+    getAreasByCoordinator: (coordinadorId: string | number) =>
+        fetchAPI<any[]>(`/AreaCoordinator/coordinator/${coordinadorId}`),
+    create: (data: { area_encargada: number; coordinador: number }) =>
+        fetchAPI<any>('/AreaCoordinator', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+        fetchAPI<{ message: string; deleted: any }>(`/AreaCoordinator/${id}`, { method: 'DELETE' }),
+};
+
+// =====================
 // ROLES API
 // =====================
 
@@ -187,41 +202,41 @@ export const rolesAPI = {
 // =====================
 
 export const usuariosAPI = {
-  getAll: () => fetchAPI<Usuario[]>("/Usuarios"),
-  getById: (id: string) => fetchAPI<Usuario>(`/Usuarios/${id}`),
-  getByDocumento: (documentoId: number) =>
-  fetchAPI<Usuario>(`/Usuarios/documento/${documentoId}`),
-  getByEmail: (email: string) => fetchAPI<Usuario>(`/Usuarios/email/${email}`),
-  getByRol: (rolId: number) => fetchAPI<Usuario[]>(`/Usuarios/rol/${rolId}`),
-  create: (data: {
-    documento_id: number;
-    nombre_usuario: string;
-    password: string;
-    rol: number;
-    email?: string;
-  }) =>
-    fetchAPI<Usuario>("/Usuarios", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  update: (
-    id: string,
-    data: {
-      documento_id?: number;
-      nombre_usuario?: string;
-      password?: string;
-      rol?: number;
-      email?: string;
-    }
-  ) =>
-    fetchAPI<Usuario>(`/Usuarios/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  delete: (id: string) =>
-    fetchAPI<{ message: string; deleted: Usuario }>(`/Usuarios/${id}`, {
-      method: "DELETE",
-    }),
+    getAll: () => fetchAPI<Usuario[]>("/Usuarios"),
+    getById: (id: string) => fetchAPI<Usuario>(`/Usuarios/${id}`),
+    getByDocumento: (documentoId: number) =>
+        fetchAPI<Usuario>(`/Usuarios/documento/${documentoId}`),
+    getByEmail: (email: string) => fetchAPI<Usuario>(`/Usuarios/email/${email}`),
+    getByRol: (rolId: number) => fetchAPI<Usuario[]>(`/Usuarios/rol/${rolId}`),
+    create: (data: {
+        documento_id: number;
+        nombre_usuario: string;
+        password: string;
+        rol: number;
+        email?: string;
+    }) =>
+        fetchAPI<Usuario>("/Usuarios", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (
+        id: string,
+        data: {
+            documento_id?: number;
+            nombre_usuario?: string;
+            password?: string;
+            rol?: number;
+            email?: string;
+        }
+    ) =>
+        fetchAPI<Usuario>(`/Usuarios/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(data),
+        }),
+    delete: (id: string) =>
+        fetchAPI<{ message: string; deleted: Usuario }>(`/Usuarios/${id}`, {
+            method: "DELETE",
+        }),
 };
 
 // =====================

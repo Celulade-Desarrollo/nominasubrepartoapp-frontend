@@ -46,7 +46,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       setLoading(true);
       
       const coordinadorDocumentoId = String(user.documento_id);
-      console.log("📊 Cargando datos del coordinador:", coordinadorDocumentoId);
       
       // PARTE 1: Cargar TODAS las empresas y áreas para GENERAR reportes (SIN FILTRO)
       const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
@@ -70,7 +69,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
       const allClientesWithAreas = Array.from(companiesMap.values());
       setClientes(allClientesWithAreas);
-      console.log("✅ TODAS las empresas cargadas para GENERAR reportes (SIN FILTRO):", allClientesWithAreas);
 
       // PARTE 2: Cargar solo las áreas del coordinador para APROBAR reportes (CON FILTRO)
       const companiesData = await areasEnCompanyAPI.getByCoordinator(coordinadorDocumentoId);
@@ -83,13 +81,10 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       }));
 
       setClientesParaAprobacion(clientesForAprobacion);
-      console.log("✅ Áreas del coordinador cargadas para APROBAR reportes (CON FILTRO):", clientesForAprobacion);
 
       // PARTE 3: Cargar reportes existentes del coordinador (para mostrar en "Mis Horas")
       const documentoId = parseInt(user.cedula);
-      console.log('📊 Cargando reportes existentes del coordinador para documento_id:', documentoId);
       const reportes = await reportesAPI.getByDocumento(documentoId);
-      console.log('📋 Reportes cargados:', reportes);
 
       const mappedRecords: HoursRecord[] = reportes.map(r => ({
         clienteId: r.cliente,
@@ -100,10 +95,9 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         aprobado: r.aprobado
       }));
 
-      console.log('✅ Registros mapeados:', mappedRecords);
       setHoursRecords(mappedRecords);
     } catch (error) {
-      console.error("❌ Error al cargar datos:", error);
+      console.error("Error al cargar datos:", error);
     } finally {
       setLoading(false);
     }
@@ -145,6 +139,11 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
       console.error('Error saving hours:', error);
     }
   };
+
+  // Filtrar los reportes para que solo muestren los de áreas asignadas al coordinador (para la aprobación)
+  const filteredHoursRecords = hoursRecords.filter(r => 
+    clientesParaAprobacion.some(c => c.id === r.clienteId && c.areas.includes(r.areaCliente || ''))
+  );
 
   const totalHoras = hoursRecords.reduce((sum, record) => sum + record.horas, 0);
 

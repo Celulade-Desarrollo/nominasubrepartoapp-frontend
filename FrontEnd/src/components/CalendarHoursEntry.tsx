@@ -65,29 +65,16 @@ export function CalendarHoursEntry({
 
       try {
         setLoadingAreas(true);
-        console.log("📍 Cargando áreas para cliente (elementoPEP):", selectedCliente);
         
         // SIEMPRE consultar el backend para garantizar datos frescos y correctos
-        console.log("📡 Obteniendo áreas del backend para:", selectedCliente);
         const areasData = await areasEnCompanyAPI.getByCompany(selectedCliente);
         
-        console.log("📊 Datos del backend:", areasData);
-        
         const areaNames = areasData
-          .map(a => {
-            console.log("  - área:", a.nombre_area, "id:", a.area_cliente);
-            return a.nombre_area;
-          })
+          .map(a => a.nombre_area)
           .filter((name): name is string => name !== null && name !== undefined && name.trim().length > 0)
           .map(name => name.trim());
         
-        console.log("✅ Áreas obtenidas y procesadas:", areaNames);
         setDynamicAreas(areaNames);
-        
-        // Si no hay áreas, mostrar advertencia
-        if (areaNames.length === 0) {
-          console.warn("⚠️ No hay áreas disponibles para el cliente:", selectedCliente);
-        }
       } catch (err) {
         console.error("❌ Error al cargar áreas:", err);
         setDynamicAreas([]);
@@ -128,38 +115,24 @@ export function CalendarHoursEntry({
     
     // Validaciones estrictas
     if (!selectedCliente) {
-      console.error("❌ Validación fallida: No hay cliente seleccionado");
       return;
     }
 
     if (!areaCliente || !areaCliente.trim()) {
-      console.error("❌ Validación fallida: No hay área seleccionada", { areaCliente, filteredAreas, dynamicAreas });
       return;
     }
 
     if (!horas || parseFloat(horas) <= 0) {
-      console.error("❌ Validación fallida: Horas inválidas", { horas });
       return;
     }
 
     if (!selectedDate) {
-      console.error("❌ Validación fallida: No hay fecha seleccionada");
       return;
     }
 
     const areaClienteValue = areaCliente.trim();
-    
-    // Log detallado antes de guardar
-    console.log("📝 Guardando reporte con:", {
-      cliente: selectedCliente,
-      area: areaClienteValue,
-      horas: parseFloat(horas),
-      fecha: selectedDate.toISOString().split('T')[0],
-    });
 
     onSave(selectedCliente, parseFloat(horas), selectedDate, areaClienteValue);
-    
-    console.log("✅ Reporte guardado");
     setDialogOpen(false);
     
     // Reset is handled by useEffect or handleOpenChange if strictly needed, 
@@ -357,8 +330,8 @@ export function CalendarHoursEntry({
                 <SelectContent>
                   {filteredAreas
                     .filter(area => area && area.trim() && typeof area === 'string')
-                    .map((area) => (
-                      <SelectItem key={area} value={area}>
+                    .map((area, idx) => (
+                      <SelectItem key={`area-${idx}-${area}`} value={area}>
                         {area}
                       </SelectItem>
                     ))}
@@ -379,8 +352,8 @@ export function CalendarHoursEntry({
                   <SelectValue placeholder="Selecciona un cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredClientes.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.elementoPEP}>
+                  {filteredClientes.map((cliente, idx) => (
+                    <SelectItem key={`cliente-${idx}-${cliente.elementoPEP}`} value={cliente.elementoPEP}>
                       {cliente.nombre}
                     </SelectItem>
                   ))}

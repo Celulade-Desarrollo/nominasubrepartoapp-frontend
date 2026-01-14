@@ -35,10 +35,8 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
   // Load initial data
   useEffect(() => {
     if (user && user.cedula) {
-      console.log('🔄 Iniciando carga de datos para usuario:', user.nombre);
       loadData(user);
     } else {
-      console.warn('⚠️ Usuario no disponible:', user);
       setLoading(false);
     }
   }, [user.cedula]); // Solo incluir cedula para evitar re-renders innecesarios
@@ -46,12 +44,8 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
   const loadData = async (currentUser: User) => {
     try {
       setLoading(true);
-      console.log('📝 currentUser recibido:', currentUser);
-      console.log('📝 currentUser.cedula:', currentUser.cedula);
-      
       // Load ALL companies and their areas (unrestricted)
       const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
-      console.log('🏢 Empresas cargadas:', allCompaniesWithAreas.length);
       
       // Group by company
       const companiesMap = new Map<string, Cliente>();
@@ -72,15 +66,11 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
 
       const clientesWithAreas = Array.from(companiesMap.values());
       setClientes(clientesWithAreas);
-      console.log('✅ Clientes con áreas procesados:', clientesWithAreas.length);
 
       // Load existing reports for this user
       if (currentUser.cedula) {
         const documentoId = parseInt(currentUser.cedula);
-        console.log('📊 Cargando reportes para documento_id:', documentoId, '(tipo:', typeof documentoId, ')');
         const reportes = await reportesAPI.getByDocumento(documentoId);
-        console.log('📋 Reportes cargados del servidor:', reportes);
-        console.log('📋 Cantidad de reportes:', reportes.length);
 
         const mappedRecords: HoursRecord[] = reportes.map(r => ({
           id: r.id,
@@ -95,10 +85,7 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
           aprobado: r.aprobado
         }));
 
-        console.log('📝 Registros mapeados:', mappedRecords);
         setHoursRecords(mappedRecords);
-      } else {
-        console.warn('⚠️ user.cedula no está definido:', user);
       }
 
     } catch (err) {

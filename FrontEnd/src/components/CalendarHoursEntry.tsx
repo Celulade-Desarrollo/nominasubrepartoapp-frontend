@@ -12,8 +12,8 @@ import { es } from 'date-fns/locale';
 import { HoursRecord } from './HoursHistoryByDate';
 import { areasEnCompanyAPI } from '../services/api';
 
-// Límite semanal de horas (Lun-Jue: 10h, Vie: 9h = 42h total)
-const WEEKLY_HOURS_LIMIT = 42;
+// Límite semanal de horas (Lun-Vie: 44h total)
+const WEEKLY_HOURS_LIMIT = 44;
 
 interface Cliente {
   id: string;
@@ -119,6 +119,16 @@ export function CalendarHoursEntry({
     loadAreasForCliente();
   }, [selectedCliente, clientes]);
 
+  // Auto-dismiss errors after 5 seconds
+  useEffect(() => {
+    if (weeklyHoursError) {
+      const timer = setTimeout(() => {
+        setWeeklyHoursError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [weeklyHoursError]);
+
   // Handle dialog close (reset edit state)
   const handleOpenChange = (open: boolean) => {
     setDialogOpen(open);
@@ -139,6 +149,7 @@ export function CalendarHoursEntry({
 
   const handleDayClick = (date: Date) => {
     if (date > new Date()) return; // No permitir fechas futuras
+    if (date.getDay() === 0) return; // No permitir domingos
     setSelectedDate(date);
     setDialogOpen(true);
   };
@@ -165,8 +176,31 @@ export function CalendarHoursEntry({
     }
 
     const horasNumero = parseFloat(horas);
+    const dayOfWeek = selectedDate.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
 
-    // Validar límite semanal de 42 horas
+    // 1. Validar Domingo (Bloqueado)
+    if (dayOfWeek === 0) {
+      setWeeklyHoursError("No se pueden registrar horas los domingos.");
+      return;
+    }
+
+    // 2. Validar Lunes a Jueves (Máximo 9 horas)
+    if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      if (horasNumero > 9) {
+        setWeeklyHoursError("De lunes a jueves solo se pueden registrar un máximo de 9 horas.");
+        return;
+      }
+    }
+
+    // 3. Validar Viernes (Máximo 8 horas)
+    if (dayOfWeek === 5) {
+      if (horasNumero > 8) {
+        setWeeklyHoursError("Los viernes solo se pueden registrar un máximo de 8 horas.");
+        return;
+      }
+    }
+
+    // Validar límite semanal
     if (horasNumero > weeklyHoursInfo.remaining) {
       setWeeklyHoursError(
         `No puedes registrar ${horasNumero}h. Solo te quedan ${weeklyHoursInfo.remaining}h disponibles esta semana (límite: ${WEEKLY_HOURS_LIMIT}h).`
@@ -315,25 +349,27 @@ export function CalendarHoursEntry({
               const hoursForDay = getHoursForDate(day);
               const isToday = isSameDay(day, new Date());
               const isFuture = day > new Date();
+              const isSunday = day.getDay() === 0;
               const hasHours = hoursForDay > 0;
+              const isDisabled = isFuture || isSunday;
 
               return (
                 <button
                   key={day.toString()}
                   onClick={() => handleDayClick(day)}
-                  disabled={isFuture}
+                  disabled={isDisabled}
                   className={`
                     min-h-[80px] p-2 rounded-lg border-2 transition-all relative
-                    ${isFuture ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'hover:border-[#303483] hover:bg-[#303483]/5 hover:shadow-sm cursor-pointer border-gray-200'}
+                    ${isDisabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'hover:border-[#303483] hover:bg-[#303483]/5 hover:shadow-sm cursor-pointer border-gray-200'}
                     ${isToday ? 'border-[#bbd531] bg-[#bbd531]/10 shadow-sm' : ''}
                     ${hasHours && !isToday ? 'bg-[#303483]/5 border-[#303483]/20' : ''}
                   `}
                   style={{
-                    backgroundColor: isToday ? '#bad53194' : isFuture ? '#f0f0f0' : 'transparent',
+                    backgroundColor: isToday ? '#bad53194' : isDisabled ? '#f0f0f0' : 'transparent',
                   }}
                 >
                   <div className="flex flex-col h-full">
-                    <span className={`text-sm ${isToday ? 'text-[#303483] ' : isFuture ? 'text-gray-400' : 'text-gray-700'}`}>
+                    <span className={`text-sm ${isToday ? 'text-[#303483] ' : isDisabled ? 'text-gray-400' : 'text-gray-700'}`}>
                       {format(day, 'd')}
                     </span>
                     {hasHours && (
@@ -346,6 +382,11 @@ export function CalendarHoursEntry({
                     {isToday && !hasHours && (
                       <div className="mt-auto flex justify-center">
                         <div className="text-xs text-[#303483]">Hoy</div>
+                      </div>
+                    )}
+                    {isSunday && !isFuture && (
+                      <div className="mt-auto flex justify-center">
+                        <div className="text-[10px] text-gray-400">Descanso</div>
                       </div>
                     )}
                   </div>
@@ -436,18 +477,33 @@ export function CalendarHoursEntry({
             </div>
 
             {/* Información de horas semanales */}
-            <div className={`rounded-lg p-3 text-sm ${weeklyHoursInfo.remaining < 10
-                ? 'bg-amber-50 border border-amber-200'
-                : 'bg-blue-50 border border-blue-200'
+            <div className={`rounded-lg p-3 text-sm border ${weeklyHoursInfo.remaining < 0
+              ? 'bg-red-50 border-red-200'
+              : weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT
+                ? 'bg-amber-50 border-amber-200'
+                : 'bg-green-50 border-green-200'
               }`}>
               <div className="flex items-center justify-between">
                 <span className="font-medium">Horas esta semana:</span>
-                <span className={`font-bold ${weeklyHoursInfo.remaining < 10 ? 'text-amber-700' : 'text-blue-700'}`}>
+                <span className={`font-bold ${weeklyHoursInfo.remaining < 0
+                  ? 'text-red-700'
+                  : weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT
+                    ? 'text-amber-700'
+                    : 'text-green-700'
+                  }`}>
                   {weeklyHoursInfo.used}h / {WEEKLY_HOURS_LIMIT}h
                 </span>
               </div>
-              <div className="mt-1 text-xs text-gray-600">
-                Disponibles: <span className="font-semibold">{weeklyHoursInfo.remaining}h</span>
+              <div className="mt-1 text-xs text-gray-600 flex justify-between items-center">
+                <span>
+                  Disponibles: <span className="font-semibold">{Math.max(0, weeklyHoursInfo.remaining)}h</span>
+                </span>
+                {weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT && (
+                  <span className="text-amber-600 font-medium">Semana Incompleta</span>
+                )}
+                {weeklyHoursInfo.used >= WEEKLY_HOURS_LIMIT && (
+                  <span className="text-green-600 font-medium">Semana Completa</span>
+                )}
               </div>
             </div>
 

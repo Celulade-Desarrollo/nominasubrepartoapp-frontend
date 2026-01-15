@@ -692,6 +692,81 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                 </div>
               ))}
             </div>
+
+            {/* NUEVA SECCIÓN: Resumen por Usuario */}
+            <div className="mt-12">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <User className="w-5 h-5 text-[#303483]" />
+                Resumen por Usuario (Semanal)
+              </h3>
+              <div className="space-y-6">
+                {weeklyTotals.map((week, weekIdx) => {
+                  // Calcular resumen por usuarios dinámicamente para esta semana
+                  const usersMap = new Map<number, {
+                    name: string;
+                    total: number;
+                    clients: Map<string, { name: string; total: number }>
+                  }>();
+
+                  // Filtrar reportes de esta semana
+                  const weekReports = reports.filter(r => {
+                    if (!r.fecha_trabajada) return false;
+                    const rDate = parseISO(r.fecha_trabajada);
+                    return isWithinInterval(rDate, { start: week.weekStart, end: week.weekEnd });
+                  });
+
+                  weekReports.forEach(r => {
+                    if (!usersMap.has(r.documento_id)) {
+                      usersMap.set(r.documento_id, {
+                        name: r.nombre_empleado || `User ${r.documento_id}`,
+                        total: 0,
+                        clients: new Map()
+                      });
+                    }
+                    const u = usersMap.get(r.documento_id)!;
+                    u.total += r.horas;
+
+                    const clientKey = r.cliente || 'Desconocido';
+                    if (!u.clients.has(clientKey)) {
+                      u.clients.set(clientKey, { name: r.nombre_company || clientKey, total: 0 });
+                    }
+                    u.clients.get(clientKey)!.total += r.horas;
+                  });
+
+                  if (usersMap.size === 0) return null;
+
+                  return (
+                    <div key={`user-summary-${weekIdx}`} className="bg-gray-50 border rounded-lg overflow-hidden">
+                      <div className="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+                        <span className="font-semibold text-[#303483]">
+                          Semana: {format(week.weekStart, "d MMM", { locale: es })} - {format(week.weekEnd, "d MMM", { locale: es })}
+                        </span>
+                        <span className="text-sm text-gray-600 font-medium">Total: {week.totalHours}h</span>
+                      </div>
+                      <div className="divide-y">
+                        {Array.from(usersMap.values()).map((user, uIdx) => (
+                          <div key={uIdx} className="p-4 bg-white">
+                            <div className="flex justify-between items-center mb-2">
+                              <div className="font-medium text-gray-900">{user.name}</div>
+                              <div className="font-bold text-[#303483]">{user.total}h</div>
+                            </div>
+                            <div className="pl-4 border-l-2 border-gray-100 space-y-1">
+                              {Array.from(user.clients.values()).map((client, cIdx) => (
+                                <div key={cIdx} className="flex justify-between text-sm text-gray-600">
+                                  <span>{client.name}</span>
+                                  <span>{client.total}h</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
         )}
       </CardContent>

@@ -200,6 +200,14 @@ export function CalendarHoursEntry({
       }
     }
 
+    // 4. Validar Sábado (Máximo 8 horas)
+    if (dayOfWeek === 6) {
+      if (horasNumero > 8) {
+        setWeeklyHoursError("Los sábados solo se pueden registrar un máximo de 8 horas.");
+        return;
+      }
+    }
+
     // Validar límite semanal
     if (horasNumero > weeklyHoursInfo.remaining) {
       setWeeklyHoursError(

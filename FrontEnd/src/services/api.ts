@@ -35,6 +35,7 @@ export interface Company {
     created_at: string;
     nombre_company: string;
     elemento_pep: string;
+    is_active?: boolean;
 }
 
 export interface IntermediArea {
@@ -107,11 +108,11 @@ export const areasAPI = {
 // =====================
 
 export const companiesAPI = {
-    getAll: () => fetchAPI<Company[]>('/Companies'),
+    getAll: (active?: boolean) => fetchAPI<Company[]>(`/Companies${active ? '?active=true' : ''}`),
     getById: (id: string) => fetchAPI<Company>(`/Companies/${id}`),
     create: (data: { nombre_company: string; elemento_pep: string }) =>
         fetchAPI<Company>('/Companies', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { nombre_company?: string; elemento_pep?: string }) =>
+    update: (id: string, data: { nombre_company?: string; elemento_pep?: string; is_active?: boolean }) =>
         fetchAPI<Company>(`/Companies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) =>
         fetchAPI<{ message: string; deleted: Company }>(`/Companies/${id}`, { method: 'DELETE' }),
@@ -237,6 +238,17 @@ export const usuariosAPI = {
         fetchAPI<{ message: string; deleted: Usuario }>(`/Usuarios/${id}`, {
             method: "DELETE",
         }),
+};
+
+// =====================
+// SETTINGS API
+// =====================
+
+export const settingsAPI = {
+    getAll: () => fetchAPI<any>('/Settings'),
+    getByKey: (key: string) => fetchAPI<any>(`/Settings/${key}`),
+    update: (data: { key: string; value: any }) =>
+        fetchAPI<any>('/Settings', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 // =====================

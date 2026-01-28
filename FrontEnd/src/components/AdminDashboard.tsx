@@ -1,9 +1,11 @@
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { LogOut, Building2, Download } from 'lucide-react';
+import { LogOut, Building2, Download, Users, Settings } from 'lucide-react';
 import { ClientesManager } from './ClientesManager';
 import { ReportDownload } from './ReportDownload';
+import { AdminAssignments } from './AdminAssignments';
+import { GlobalConfig } from './GlobalConfig';
 import type { User } from '../App';
 import compunetLogo from '../assets/images/compunet_logo.jpg';
 
@@ -41,14 +43,22 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="clients" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="clients">
               <Building2 className="w-4 h-4 mr-2" />
               Clientes
             </TabsTrigger>
+            <TabsTrigger value="assignments">
+              <Users className="w-4 h-4 mr-2" />
+              Asignaciones
+            </TabsTrigger>
             <TabsTrigger value="download">
               <Download className="w-4 h-4 mr-2" />
-              Descargar Reportes
+              Reportes
+            </TabsTrigger>
+            <TabsTrigger value="config">
+              <Settings className="w-4 h-4 mr-2" />
+              Configuración
             </TabsTrigger>
           </TabsList>
 
@@ -71,6 +81,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
             </Card>
           </TabsContent>
 
+          <TabsContent value="assignments">
+            <AdminAssignments />
+          </TabsContent>
+
           <TabsContent value="download">
             <Card>
               <CardHeader>
@@ -88,6 +102,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
                 <ReportDownload />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="config">
+            <GlobalConfig />
           </TabsContent>
         </Tabs>
       </main>

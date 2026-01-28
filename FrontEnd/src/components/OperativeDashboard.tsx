@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { LogOut, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate, HoursRecord } from './HoursHistoryByDate';
 import { Alert, AlertDescription } from './ui/alert';
-import { companiesAPI, areasEnCompanyAPI, reportesAPI } from '../services/api';
+import { areasEnCompanyAPI, reportesAPI, settingsAPI } from '../services/api';
+import { es } from 'date-fns/locale';
 import type { User } from '../App';
 import compunetLogo from '../assets/images/compunet_logo.jpg';
 
@@ -32,15 +33,25 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingRecord, setEditingRecord] = useState<HoursRecord | null>(null);
+  const [settings, setSettings] = useState<any>(null);
 
-  // Load initial data
   useEffect(() => {
     if (user && user.cedula) {
       loadData(user);
+      loadSettings();
     } else {
       setLoading(false);
     }
-  }, [user.cedula]); // Solo incluir cedula para evitar re-renders innecesarios
+  }, [user.cedula]);
+
+  const loadSettings = async () => {
+    try {
+      const data = await settingsAPI.getAll();
+      setSettings(data);
+    } catch (err) {
+      console.error("Error loading settings:", err);
+    }
+  };
 
   const loadData = async (currentUser: User) => {
     try {
@@ -188,7 +199,18 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
     .filter(r => r.fecha === new Date().toISOString().split('T')[0])
     .reduce((sum, record) => sum + record.horas, 0);
 
+  const totalHorasMes = hoursRecords
+    .filter(r => {
+      const rDate = new Date(r.fecha + 'T12:00:00');
+      const now = new Date();
+      return rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear();
+    })
+    .reduce((sum, record) => sum + record.horas, 0);
+
   const totalHoras = hoursRecords.reduce((sum, record) => sum + record.horas, 0);
+
+  const MONTHLY_TARGET = 176;
+  const mesActual = format(new Date(), 'MMMM', { locale: es });
 
   if (loading) {
     return (
@@ -268,6 +290,29 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Acumulado {mesActual}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col">
+                  <div className="flex items-center">
+                    <CheckCircle2 className="w-8 h-8 text-[#bbd531] mr-3" />
+                    <span className="text-3xl font-bold">{totalHorasMes} <span className="text-lg text-gray-400 font-normal">/ {MONTHLY_TARGET}h</span></span>
+                  </div>
+                  <div className="mt-4 w-full bg-gray-100 rounded-full h-2.5">
+                    <div
+                      className="bg-[#303483] h-2.5 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (totalHorasMes / MONTHLY_TARGET) * 100)}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500 text-right">
+                    {Math.round((totalHorasMes / MONTHLY_TARGET) * 100)}% de la meta mensual
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Instructions */}
@@ -280,6 +325,7 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
             existingRecords={hoursRecords}
             recordToEdit={editingRecord}
             onCancelEdit={handleCancelEdit}
+            settings={settings}
           />
 
           {/* Recent Records */}

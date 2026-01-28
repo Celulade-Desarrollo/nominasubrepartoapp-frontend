@@ -3,7 +3,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Plus, X, Loader2, Trash2, Building2 } from 'lucide-react';
+import { Plus, X, Loader2, Trash2, Building2, Eye, EyeOff } from 'lucide-react';
+import { Badge } from './ui/badge';
 import {
     companiesAPI,
     areasAPI,
@@ -125,6 +126,23 @@ export function ClientesManager({ onCompanySelect }: ClientesManagerProps) {
         } catch (err) {
             console.error('Error deleting company:', err);
             alert('Error al eliminar la compañía');
+        }
+    };
+
+    const handleToggleCompanyStatus = async (company: Company) => {
+        try {
+            const newStatus = !company.is_active;
+            await companiesAPI.update(company.id, { is_active: newStatus });
+
+            // Re-load or update local state
+            await loadCompanies();
+
+            if (selectedCompany?.id === company.id) {
+                setSelectedCompany({ ...company, is_active: newStatus });
+            }
+        } catch (err) {
+            console.error('Error toggling status:', err);
+            alert('Error al cambiar el estado de la compañía');
         }
     };
 
@@ -296,20 +314,38 @@ export function ClientesManager({ onCompanySelect }: ClientesManagerProps) {
                                     <div className="flex items-center gap-3">
                                         <Building2 className="w-5 h-5 text-[#303483]" />
                                         <div>
-                                            <p className="font-medium">{company.nombre_company}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-medium">{company.nombre_company}</p>
+                                                {company.is_active === false && (
+                                                    <Badge variant="outline" className="text-red-500 border-red-200 bg-red-50">Inactivo</Badge>
+                                                )}
+                                            </div>
                                             <p className="text-sm text-gray-500">PEP: {company.elemento_pep}</p>
                                         </div>
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteCompany(company.id);
-                                        }}
-                                    >
-                                        <Trash2 className="w-4 h-4 text-red-500" />
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            title={company.is_active === false ? "Activar" : "Inactivar"}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleCompanyStatus(company);
+                                            }}
+                                        >
+                                            {company.is_active === false ? <Eye className="w-4 h-4 text-green-500" /> : <EyeOff className="w-4 h-4 text-orange-500" />}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteCompany(company.id);
+                                            }}
+                                        >
+                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                         </div>

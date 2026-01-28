@@ -12,8 +12,17 @@ import { es } from 'date-fns/locale';
 import { HoursRecord } from './HoursHistoryByDate';
 import { areasEnCompanyAPI } from '../services/api';
 
-// Límite semanal de horas (Lun-Vie: 44h total)
-const WEEKLY_HOURS_LIMIT = 44;
+// Fallback limits if settings not loaded
+const WEEKLY_HOURS_LIMIT_DEFAULT = 44;
+const DAILY_LIMITS_DEFAULT = {
+  1: 9, // Lunes
+  2: 9, // Martes
+  3: 9, // Miércoles
+  4: 9, // Jueves
+  5: 8, // Viernes
+  6: 0, // Sábado
+  0: 0  // Domingo
+};
 
 interface Cliente {
   id: string;
@@ -30,6 +39,7 @@ interface CalendarHoursEntryProps {
   existingRecords?: HoursRecord[];
   recordToEdit?: HoursRecord | null;
   onCancelEdit?: () => void;
+  settings?: any;
 }
 
 export function CalendarHoursEntry({
@@ -37,7 +47,8 @@ export function CalendarHoursEntry({
   onSave,
   existingRecords = [],
   recordToEdit,
-  onCancelEdit
+  onCancelEdit,
+  settings
 }: CalendarHoursEntryProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -48,6 +59,23 @@ export function CalendarHoursEntry({
   const [dynamicAreas, setDynamicAreas] = useState<string[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
   const [weeklyHoursError, setWeeklyHoursError] = useState<string | null>(null);
+
+  // Get active limits from settings or default
+  const activeWeeklyLimit = settings?.weekly_limit || WEEKLY_HOURS_LIMIT_DEFAULT;
+  const activeDailyLimits = useMemo(() => {
+    if (settings?.daily_limits) {
+      return {
+        1: settings.daily_limits.monday,
+        2: settings.daily_limits.tuesday,
+        3: settings.daily_limits.wednesday,
+        4: settings.daily_limits.thursday,
+        5: settings.daily_limits.friday,
+        6: settings.daily_limits.saturday,
+        0: settings.daily_limits.sunday
+      };
+    }
+    return DAILY_LIMITS_DEFAULT;
+  }, [settings]);
 
   // Calcular horas de la semana para una fecha dada
   const getWeeklyHours = (date: Date): number => {
@@ -64,7 +92,7 @@ export function CalendarHoursEntry({
 
   // Calcular horas disponibles para la semana seleccionada
   const weeklyHoursInfo = useMemo(() => {
-    if (!selectedDate) return { used: 0, remaining: WEEKLY_HOURS_LIMIT };
+    if (!selectedDate) return { used: 0, remaining: activeWeeklyLimit };
 
     const usedHours = getWeeklyHours(selectedDate);
     // Si estamos editando, restar las horas del registro que editamos
@@ -73,9 +101,9 @@ export function CalendarHoursEntry({
 
     return {
       used: adjustedUsed,
-      remaining: WEEKLY_HOURS_LIMIT - adjustedUsed
+      remaining: activeWeeklyLimit - adjustedUsed
     };
-  }, [selectedDate, existingRecords, recordToEdit]);
+  }, [selectedDate, existingRecords, recordToEdit, activeWeeklyLimit]);
 
   // Effect to handle edit mode
   useEffect(() => {
@@ -176,42 +204,24 @@ export function CalendarHoursEntry({
     }
 
     const horasNumero = parseFloat(horas);
-    const dayOfWeek = selectedDate.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const dayOfWeek = selectedDate.getDay() as keyof typeof activeDailyLimits;
 
-    // 1. Validar Domingo (Bloqueado)
-    if (dayOfWeek === 0) {
-      setWeeklyHoursError("No se pueden registrar horas los domingos.");
+    // Validar Límite Diario dinámico (incluye Sábado/Domingo si es 0)
+    const maxPermitido = activeDailyLimits[dayOfWeek];
+
+    if (horasNumero > maxPermitido) {
+      if (maxPermitido === 0) {
+        setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
+      } else {
+        setWeeklyHoursError(`Para este día el máximo permitido es de ${maxPermitido} horas.`);
+      }
       return;
-    }
-
-    // 2. Validar Lunes a Jueves (Máximo 9 horas)
-    if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-      if (horasNumero > 9) {
-        setWeeklyHoursError("De lunes a jueves solo se pueden registrar un máximo de 9 horas.");
-        return;
-      }
-    }
-
-    // 3. Validar Viernes (Máximo 8 horas)
-    if (dayOfWeek === 5) {
-      if (horasNumero > 8) {
-        setWeeklyHoursError("Los viernes solo se pueden registrar un máximo de 8 horas.");
-        return;
-      }
-    }
-
-    // 4. Validar Sábado (Máximo 8 horas)
-    if (dayOfWeek === 6) {
-      if (horasNumero > 8) {
-        setWeeklyHoursError("Los sábados solo se pueden registrar un máximo de 8 horas.");
-        return;
-      }
     }
 
     // Validar límite semanal
     if (horasNumero > weeklyHoursInfo.remaining) {
       setWeeklyHoursError(
-        `No puedes registrar ${horasNumero}h. Solo te quedan ${weeklyHoursInfo.remaining}h disponibles esta semana (límite: ${WEEKLY_HOURS_LIMIT}h).`
+        `No puedes registrar ${horasNumero}h. Solo te quedan ${weeklyHoursInfo.remaining}h disponibles esta semana (límite: ${activeWeeklyLimit}h).`
       );
       return;
     }
@@ -357,9 +367,11 @@ export function CalendarHoursEntry({
               const hoursForDay = getHoursForDate(day);
               const isToday = isSameDay(day, new Date());
               const isFuture = day > new Date();
-              const isSunday = day.getDay() === 0;
               const hasHours = hoursForDay > 0;
-              const isDisabled = isFuture || isSunday;
+
+              // Bloquear si el límite diario para ese día es 0 en la configuración
+              const limitForDay = activeDailyLimits[day.getDay() as keyof typeof activeDailyLimits];
+              const isDisabled = isFuture || limitForDay === 0;
 
               return (
                 <button
@@ -392,9 +404,9 @@ export function CalendarHoursEntry({
                         <div className="text-xs text-[#303483]">Hoy</div>
                       </div>
                     )}
-                    {isSunday && !isFuture && (
+                    {!isFuture && limitForDay === 0 && (
                       <div className="mt-auto flex justify-center">
-                        <div className="text-[10px] text-gray-400">Descanso</div>
+                        <div className="text-[10px] text-gray-400">Restringido</div>
                       </div>
                     )}
                   </div>
@@ -487,7 +499,7 @@ export function CalendarHoursEntry({
             {/* Información de horas semanales */}
             <div className={`rounded-lg p-3 text-sm border ${weeklyHoursInfo.remaining < 0
               ? 'bg-red-50 border-red-200'
-              : weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT
+              : weeklyHoursInfo.used < activeWeeklyLimit
                 ? 'bg-amber-50 border-amber-200'
                 : 'bg-green-50 border-green-200'
               }`}>
@@ -495,21 +507,21 @@ export function CalendarHoursEntry({
                 <span className="font-medium">Horas esta semana:</span>
                 <span className={`font-bold ${weeklyHoursInfo.remaining < 0
                   ? 'text-red-700'
-                  : weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT
+                  : weeklyHoursInfo.used < activeWeeklyLimit
                     ? 'text-amber-700'
                     : 'text-green-700'
                   }`}>
-                  {weeklyHoursInfo.used}h / {WEEKLY_HOURS_LIMIT}h
+                  {weeklyHoursInfo.used}h / {activeWeeklyLimit}h
                 </span>
               </div>
               <div className="mt-1 text-xs text-gray-600 flex justify-between items-center">
                 <span>
                   Disponibles: <span className="font-semibold">{Math.max(0, weeklyHoursInfo.remaining)}h</span>
                 </span>
-                {weeklyHoursInfo.used < WEEKLY_HOURS_LIMIT && (
+                {weeklyHoursInfo.used < activeWeeklyLimit && (
                   <span className="text-amber-600 font-medium">Semana Incompleta</span>
                 )}
-                {weeklyHoursInfo.used >= WEEKLY_HOURS_LIMIT && (
+                {weeklyHoursInfo.used >= activeWeeklyLimit && (
                   <span className="text-green-600 font-medium">Semana Completa</span>
                 )}
               </div>

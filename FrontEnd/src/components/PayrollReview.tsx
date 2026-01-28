@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { reportesAPI, type Reporte } from '../services/api';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
@@ -12,7 +12,7 @@ interface PayrollReviewProps {
   coordinatorId: string;
 }
 
-type ViewMode = 'calendar' | 'employees' | 'reports';
+type ViewMode = 'calendar' | 'employees' | 'reports' | 'technicians';
 
 export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   // Data State
@@ -238,6 +238,33 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     return Array.from(uniqueEmployees.values());
   };
 
+  // Monthly summary calculation
+  const monthlyTechnicianSummary = useMemo(() => {
+    const startOfCurrentMonth = startOfMonth(new Date());
+    const endOfCurrentMonth = endOfMonth(new Date());
+
+    const summary = new Map<number, { name: string; total: number; reports: number }>();
+
+    reports.forEach(r => {
+      if (!r.fecha_trabajada) return;
+      const reportDate = parseISO(r.fecha_trabajada);
+      if (isWithinInterval(reportDate, { start: startOfCurrentMonth, end: endOfCurrentMonth })) {
+        if (!summary.has(r.documento_id)) {
+          summary.set(r.documento_id, {
+            name: r.nombre_empleado || `User ${r.documento_id}`,
+            total: 0,
+            reports: 0
+          });
+        }
+        const data = summary.get(r.documento_id)!;
+        data.total += r.horas;
+        data.reports += 1;
+      }
+    });
+
+    return Array.from(summary.values()).sort((a, b) => b.total - a.total);
+  }, [reports]);
+
   // Views Renders
   if (loading) {
     return (
@@ -440,6 +467,69 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     );
   }
 
+  // --- 2.5 TECHNICIANS SUMMARY VIEW ---
+  if (view === 'technicians') {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => setView('calendar')}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <CardTitle>Consolidado Mensual por Técnico</CardTitle>
+              <CardDescription>
+                Total de horas registradas en {format(new Date(), 'MMMM', { locale: es })} (Todos los clientes)
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50/50">
+                  <th className="text-left p-4 font-semibold text-gray-900">Técnico</th>
+                  <th className="text-center p-4 font-semibold text-gray-900">Reportes</th>
+                  <th className="text-right p-4 font-semibold text-gray-900">Total Horas</th>
+                  <th className="text-right p-4 font-semibold text-gray-900">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {monthlyTechnicianSummary.map((tech, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-[#303483]/10 rounded-full text-[#303483]">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <span className="font-medium text-gray-900">{tech.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-center text-gray-600">{tech.reports}</td>
+                    <td className="p-4 text-right font-bold text-[#303483]">{tech.total}h</td>
+                    <td className="p-4 text-right">
+                      <Badge className={tech.total >= 170 ? "bg-green-100 text-green-700 hover:bg-green-100/80" : "bg-amber-100 text-amber-700 hover:bg-amber-100/80"}>
+                        {tech.total >= 170 ? 'Completo' : 'En proceso'}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+                {monthlyTechnicianSummary.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-10 text-center text-gray-500 italic">
+                      No hay registros de horas en este mes aún.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // --- 3. CALENDAR VIEW (Default) ---
   return (
     <Card>
@@ -464,6 +554,15 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setView('technicians')}
+              className="mr-4 gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Resumen Mensual
+            </Button>
             <Button
               variant="outline"
               size="icon"

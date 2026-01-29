@@ -203,6 +203,13 @@ export function CalendarHoursEntry({
       return;
     }
 
+    // Validar que la empresa esté activa
+    const selectedCompanyData = clientes.find(c => c.elementoPEP === selectedCliente);
+    if (!selectedCompanyData) {
+      setWeeklyHoursError('Cliente no encontrado o inactivo. Por favor recarga la página y selecciona otro cliente.');
+      return;
+    }
+
     const horasNumero = parseFloat(horas);
     const dayOfWeek = selectedDate.getDay() as keyof typeof activeDailyLimits;
 

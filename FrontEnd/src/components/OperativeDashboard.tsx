@@ -56,12 +56,12 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
   const loadData = async (currentUser: User) => {
     try {
       setLoading(true);
-      // Load ALL companies and their areas (unrestricted)
-      const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
+      // Load active companies and their areas (backend filters by is_active=true)
+      const activeCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
 
       // Group by company
       const companiesMap = new Map<string, Cliente>();
-      allCompaniesWithAreas.forEach((item: any) => {
+      activeCompaniesWithAreas.forEach((item: any) => {
         if (!companiesMap.has(item.company_cliente)) {
           companiesMap.set(item.company_cliente, {
             id: item.company_cliente,
@@ -76,8 +76,8 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
         }
       });
 
-      const clientesWithAreas = Array.from(companiesMap.values());
-      setClientes(clientesWithAreas);
+      const activeClientesWithAreas = Array.from(companiesMap.values());
+      setClientes(activeClientesWithAreas);
 
       // Load existing reports for this user
       if (currentUser.cedula) {

@@ -48,12 +48,12 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
 
 
-      // PARTE 1: Cargar TODAS las empresas y áreas para GENERAR reportes (SIN FILTRO)
-      const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
+      // PARTE 1: Cargar empresas y áreas asignadas al coordinador
+      const coordinatorCompanies = await areasEnCompanyAPI.getByCoordinator(user.cedula);
 
       // Agrupar por empresa
       const companiesMap = new Map<string, Cliente>();
-      allCompaniesWithAreas.forEach((item: any) => {
+      coordinatorCompanies.forEach((item: any) => {
         if (!companiesMap.has(item.company_cliente)) {
           companiesMap.set(item.company_cliente, {
             id: item.company_cliente,
@@ -68,8 +68,8 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         }
       });
 
-      const allClientesWithAreas = Array.from(companiesMap.values());
-      setClientes(allClientesWithAreas);
+      const coordinatorClientesWithAreas = Array.from(companiesMap.values());
+      setClientes(coordinatorClientesWithAreas);
 
 
 

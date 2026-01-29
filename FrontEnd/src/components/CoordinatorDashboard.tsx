@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { CoordinatorConfig } from './CoordinatorConfig';
-import { LogOut, Clock, CheckCircle, Loader2, Settings } from 'lucide-react';
+import { LogOut, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
@@ -201,13 +200,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
               <CheckCircle className="w-4 h-4 mr-2" />
               Revisar Nómina
             </TabsTrigger>
-            <TabsTrigger
-              value="config"
-              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Configuración
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="hours" className="space-y-6">
@@ -243,10 +235,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
           <TabsContent value="review">
             <PayrollReview coordinatorId={user.cedula} />
-          </TabsContent>
-
-          <TabsContent value="config">
-            <CoordinatorConfig coordinatorId={user.cedula} />
           </TabsContent>
         </Tabs>
       </main >

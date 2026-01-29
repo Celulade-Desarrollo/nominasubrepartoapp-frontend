@@ -8,7 +8,7 @@ import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
 import { PayrollReview } from './PayrollReview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { areasEnCompanyAPI, reportesAPI } from '../services/api';
+import { areasEnCompanyAPI, reportesAPI, settingsAPI } from '../services/api';
 import type { User } from '../App';
 import compunetLogo from '../assets/images/compunet_logo.jpg';
 
@@ -37,10 +37,21 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
   const [hoursRecords, setHoursRecords] = useState<HoursRecord[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     loadData();
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const data = await settingsAPI.getAll();
+      setSettings(data);
+    } catch (err) {
+      console.error("Error loading settings:", err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -206,6 +217,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
               clientes={clientes}
               onSave={handleSaveHours}
               existingRecords={hoursRecords}
+              settings={settings}
             />
 
             {hoursRecords.length > 0 && (

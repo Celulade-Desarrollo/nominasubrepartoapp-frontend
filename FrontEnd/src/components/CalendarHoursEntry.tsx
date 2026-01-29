@@ -90,6 +90,14 @@ export function CalendarHoursEntry({
       .reduce((sum, record) => sum + record.horas, 0);
   };
 
+  // Calcular horas ya registradas en un día específico
+  const getDailyHours = (date: Date): number => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return existingRecords
+      .filter(record => record.fecha === dateStr)
+      .reduce((sum, record) => sum + record.horas, 0);
+  };
+
   // Calcular horas disponibles para la semana seleccionada
   const weeklyHoursInfo = useMemo(() => {
     if (!selectedDate) return { used: 0, remaining: activeWeeklyLimit };
@@ -216,11 +224,24 @@ export function CalendarHoursEntry({
     // Validar Límite Diario dinámico (incluye Sábado/Domingo si es 0)
     const maxPermitido = activeDailyLimits[dayOfWeek];
 
-    if (horasNumero > maxPermitido) {
-      if (maxPermitido === 0) {
-        setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
+    // Calcular horas ya registradas ese día
+    const horasYaRegistradas = getDailyHours(selectedDate);
+    // Si estamos editando, restar las horas del registro que editamos
+    const horasEditando = recordToEdit ? recordToEdit.horas : 0;
+    const horasExistentesAjustadas = horasYaRegistradas - horasEditando;
+    const totalHorasDia = horasExistentesAjustadas + horasNumero;
+
+    if (maxPermitido === 0) {
+      setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
+      return;
+    }
+
+    if (totalHorasDia > maxPermitido) {
+      const disponibles = maxPermitido - horasExistentesAjustadas;
+      if (disponibles <= 0) {
+        setWeeklyHoursError(`Ya tienes ${horasExistentesAjustadas}h registradas este día. El límite es ${maxPermitido}h.`);
       } else {
-        setWeeklyHoursError(`Para este día el máximo permitido es de ${maxPermitido} horas.`);
+        setWeeklyHoursError(`No puedes registrar ${horasNumero}h. Ya tienes ${horasExistentesAjustadas}h registradas. Solo te quedan ${disponibles}h disponibles para este día (límite: ${maxPermitido}h).`);
       }
       return;
     }

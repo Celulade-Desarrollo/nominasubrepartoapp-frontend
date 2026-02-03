@@ -6,6 +6,7 @@ import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
 import { PayrollReview } from './PayrollReview';
+import { OvertimeReport } from './OvertimeReport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { areasEnCompanyAPI, reportesAPI, settingsAPI } from '../services/api';
 import type { User } from '../App';
@@ -106,7 +107,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
     }
   };
 
-  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string) => {
+  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string, horaInicio?: string, horaFin?: string, descripcion?: string, tipoActividad?: string, latitud?: number, longitud?: number, firma?: string) => {
     try {
       const cliente = clientes.find(c => c.elementoPEP === clienteId);
       if (!cliente) return;
@@ -126,7 +127,14 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         cliente: clienteId,
         documento_id: parseInt(user.cedula),
         area_trabajo: areaTrabajoId,
-        aprobado: 1 // Auto-approve for coordinators
+        aprobado: 1, // Auto-approve for coordinators
+        hora_inicio: horaInicio,
+        hora_fin: horaFin,
+        descripcion,
+        tipo_actividad: tipoActividad,
+        latitud,
+        longitud,
+        firma
       });
 
       const newRecord: HoursRecord = {

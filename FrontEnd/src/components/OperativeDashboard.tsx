@@ -116,7 +116,7 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
     setEditingRecord(null);
   };
 
-  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string) => {
+  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string, horaInicio?: string, horaFin?: string, descripcion?: string, tipoActividad?: string, latitud?: number, longitud?: number, firma?: string) => {
     try {
       // clienteId receives the elementoPEP now
       const cliente = clientes.find(c => c.elementoPEP === clienteId);
@@ -139,11 +139,16 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
         // UPDATE EXISTING REPORT
         await reportesAPI.update(editingRecord.id, {
           horas: horas,
-          // fecha_trabajada: formattedDate, // Optional capability to update date?
-          // If we allow updating date, un-comment. The prompt implies allowed to edit "that report".
           cliente: clienteId,
           area_trabajo: areaTrabajoId,
-          aprobado: 0 // Reset to pending when edited
+          aprobado: 0, // Reset to pending when edited
+          hora_inicio: horaInicio,
+          hora_fin: horaFin,
+          descripcion,
+          tipo_actividad: tipoActividad,
+          latitud,
+          longitud,
+          firma
         });
 
         // Update local state
@@ -155,12 +160,12 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
             clienteNombre: cliente.nombre,
             areaCliente,
             aprobado: 0,
-            fecha: formattedDate // Assuming we update date too
+            fecha: formattedDate
           } : r
         ));
 
         setEditingRecord(null);
-        setShowSuccess(true); // Maybe different message for update?
+        setShowSuccess(true);
       } else {
         // CREATE NEW REPORT
         const newReport = await reportesAPI.create({
@@ -168,7 +173,14 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
           fecha_trabajada: formattedDate,
           cliente: clienteId,
           documento_id: parseInt(user.cedula),
-          area_trabajo: areaTrabajoId
+          area_trabajo: areaTrabajoId,
+          hora_inicio: horaInicio,
+          hora_fin: horaFin,
+          descripcion,
+          tipo_actividad: tipoActividad,
+          latitud,
+          longitud,
+          firma
         });
 
         // Update local state
@@ -178,7 +190,7 @@ export function OperativeDashboard({ user, onLogout }: OperativeDashboardProps) 
           clienteNombre: cliente.nombre,
           elementoPEP: '',
           horas,
-          fecha: formattedDate, // Use formatted date 
+          fecha: formattedDate,
           areaCliente,
           aprobado: 0
         };

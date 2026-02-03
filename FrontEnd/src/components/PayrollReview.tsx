@@ -2,11 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users, Calendar as CalendarIcon } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { reportesAPI, type Reporte } from '../services/api';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Calendar } from './ui/calendar';
+import { reportesAPI, settingsAPI, type Reporte } from '../services/api';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cn } from './ui/utils';
 
 interface PayrollReviewProps {
   coordinatorId: string;
@@ -21,6 +24,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
 
   // Navigation State
   const [view, setView] = useState<ViewMode>('calendar');
@@ -28,9 +32,33 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<{ id: number; name: string } | null>(null);
 
+  // Date range for technicians view
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // Initialize date range (current month)
+  useEffect(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    setDateFrom(firstDay.toISOString().split('T')[0]);
+    setDateTo(lastDay.toISOString().split('T')[0]);
+  }, []);
+
   useEffect(() => {
     fetchReports();
+    fetchSettings();
   }, [coordinatorId]);
+
+  const fetchSettings = async () => {
+    try {
+      const data = await settingsAPI.getAll();
+      setSettings(data);
+    } catch (e) {
+      console.error("Error loading settings:", e);
+    }
+  };
 
   const fetchReports = async () => {
     try {
@@ -44,6 +72,64 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper: Convertir "HH:MM" a minutos desde medianoche
+  const timeToMinutes = (timeStr: string) => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // Helper: Calcular desglose de horas
+  const calculateHoursBreakdown = (report: Reporte) => {
+    if (!report.hora_inicio || !report.hora_fin || !report.fecha_trabajada || !settings) {
+      return { normal: report.horas, extra: 0, total: report.horas };
+    }
+
+    const startMin = timeToMinutes(report.hora_inicio);
+    const endMin = timeToMinutes(report.hora_fin);
+
+    // Determinar horario normal según el día
+    const date = parseISO(report.fecha_trabajada); // Local date from string YYYY-MM-DD
+    const dayOfWeek = date.getDay(); // 0=Sun, 5=Fri
+    // Viernes usa horario especial si existe, sino usa normal. Otros días usan normal.
+    // OJO: parseISO interpreta en local time si no tiene Z. fecha_trabajada es YYYY-MM-DD. 
+    // Al usar parseISO('2023-10-27') devuelve media noche local. getDay() es correcto.
+
+    let normalStartStr = settings.normal_hours_start?.replace(/"/g, '') || '07:30';
+    let normalEndStr = settings.normal_hours_end?.replace(/"/g, '') || '17:30';
+
+    if (dayOfWeek === 5 && settings.normal_hours_end_friday) {
+      normalEndStr = settings.normal_hours_end_friday.replace(/"/g, '');
+    }
+
+    const limitStart = timeToMinutes(normalStartStr);
+    const limitEnd = timeToMinutes(normalEndStr);
+
+    // Calcular intersección (Horas Normales)
+    // Rango trabajado: [startMin, endMin]
+    // Rango normal: [limitStart, limitEnd]
+
+    const overlapStart = Math.max(startMin, limitStart);
+    const overlapEnd = Math.min(endMin, limitEnd);
+
+    let normalMinutes = 0;
+    if (overlapStart < overlapEnd) {
+      normalMinutes = overlapEnd - overlapStart;
+    }
+
+    // Total trabajado
+    let totalMinutes = endMin - startMin;
+    if (totalMinutes < 0) totalMinutes += 24 * 60; // Caso cruce de medianoche (simple)
+
+    const extraMinutes = Math.max(0, totalMinutes - normalMinutes);
+
+    return {
+      normal: parseFloat((normalMinutes / 60).toFixed(2)),
+      extra: parseFloat((extraMinutes / 60).toFixed(2)),
+      total: parseFloat((totalMinutes / 60).toFixed(2))
+    };
   };
 
 
@@ -162,6 +248,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     approved: number;
     pending: number;
     rejected: number;
+    extraHours: number; // Total de horas extras en la semana
     byClient: Map<string, { total: number; approved: number; pending: number; rejected: number; name: string }>;
   }
 
@@ -186,17 +273,38 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           approved: 0,
           pending: 0,
           rejected: 0,
+          extraHours: 0,
           byClient: new Map()
         });
       }
 
       const week = weeks.get(weekKey)!;
 
+      // Calcular desglose de horas extras para este reporte
+      const breakdown = calculateHoursBreakdown(report);
+      week.extraHours += breakdown.extra;
+
       // Update week totals
       week.totalHours += report.horas;
-      if (report.aprobado === 1) week.approved += report.horas;
-      else if (report.aprobado === 2) week.rejected += report.horas;
-      else week.pending += report.horas;
+
+      if (report.aprobado === 1) {
+        week.approved += report.horas;
+      } else if (report.aprobado === 2) {
+        week.rejected += report.horas;
+      } else if (report.aprobado === 3) {
+        // Estado 3: Aprobado parcial (solo normales)
+        // Necesitamos calcular el desglose aquí también
+        // OJO: calculateHoursBreakdown depende de settings, pero settings es state.
+        // weeklyTotals usa useMemo [reports, currentMonth]. Si settings cambia, debe recalcular.
+        // Agregar settings a dependencia useMemo.
+        // Pero calculateHoursBreakdown está definido fuera? No, está dentro del componente.
+        // Llamamos a la función helper.
+        const bd = calculateHoursBreakdown(report);
+        week.approved += bd.normal;
+        week.rejected += bd.extra;
+      } else {
+        week.pending += report.horas;
+      }
 
       // Update client totals
       if (!week.byClient.has(clientKey)) {
@@ -204,9 +312,18 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
       }
       const clientData = week.byClient.get(clientKey)!;
       clientData.total += report.horas;
-      if (report.aprobado === 1) clientData.approved += report.horas;
-      else if (report.aprobado === 2) clientData.rejected += report.horas;
-      else clientData.pending += report.horas;
+
+      if (report.aprobado === 1) {
+        clientData.approved += report.horas;
+      } else if (report.aprobado === 2) {
+        clientData.rejected += report.horas;
+      } else if (report.aprobado === 3) {
+        const bd = calculateHoursBreakdown(report);
+        clientData.approved += bd.normal;
+        clientData.rejected += bd.extra;
+      } else {
+        clientData.pending += report.horas;
+      }
     });
 
     // Filter to show only weeks in current month view
@@ -216,7 +333,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           isWithinInterval(week.weekEnd, { start: monthStart, end: monthEnd });
       })
       .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
-  }, [reports, currentMonth]);
+  }, [reports, currentMonth, settings]);
 
   // Employee List Helpers
   const getEmployeesForSelectedDate = () => {
@@ -240,15 +357,19 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
 
   // Monthly summary calculation
   const monthlyTechnicianSummary = useMemo(() => {
-    const startOfCurrentMonth = startOfMonth(new Date());
-    const endOfCurrentMonth = endOfMonth(new Date());
+    if (!dateFrom || !dateTo) return [];
+
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
 
     const summary = new Map<number, { name: string; total: number; reports: number }>();
 
     reports.forEach(r => {
       if (!r.fecha_trabajada) return;
       const reportDate = parseISO(r.fecha_trabajada);
-      if (isWithinInterval(reportDate, { start: startOfCurrentMonth, end: endOfCurrentMonth })) {
+
+      if (reportDate >= from && reportDate <= to) {
         if (!summary.has(r.documento_id)) {
           summary.set(r.documento_id, {
             name: r.nombre_empleado || `User ${r.documento_id}`,
@@ -263,7 +384,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     });
 
     return Array.from(summary.values()).sort((a, b) => b.total - a.total);
-  }, [reports]);
+  }, [reports, dateFrom, dateTo]);
 
   // Views Renders
   if (loading) {
@@ -302,81 +423,123 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {employeeReports.map(report => (
-            <div key={report.id} className="border rounded-lg p-4 bg-white shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="font-medium text-gray-900">{report.nombre_company || report.cliente}</p>
-                  <div className="flex items-center text-sm text-gray-500 gap-4">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {report.horas} horas</span>
-                    <span>{report.nombre_area}</span>
-                  </div>
-                  {(report.aprobado === 1 || report.aprobado === 2) && report.nombre_aprobador && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      {report.aprobado === 1 ? 'Aprobado' : 'Rechazado'} por: {report.nombre_aprobador}
-                    </div>
-                  )}
-                </div>
+          {employeeReports.map(report => {
+            // Calcular breakdown una sola vez para usar en toda la UI
+            const breakdown = calculateHoursBreakdown(report);
+            const hasExtras = breakdown.extra > 0;
 
-                <div className="flex items-center gap-2">
-                  {report.aprobado === 1 ? (
-                    <Badge className="bg-[#bbd531] text-[#303483] hover:bg-[#bbd531]/90">Aprobado</Badge>
-                  ) : report.aprobado === 2 ? (
-                    <Badge variant="destructive">Rechazado</Badge>
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        className="bg-[#303483] hover:bg-[#303483]/90"
-                        onClick={async () => {
-                          try {
-                            setProcessingId(report.id);
-                            await reportesAPI.update(report.id, {
-                              aprobado: 1,
-                              // @ts-ignore
-                              aprobadopor: parseInt(coordinatorId)
-                            });
-                            await fetchReports();
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setProcessingId(null);
-                          }
-                        }}
-                        disabled={processingId === report.id}
-                      >
-                        {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
-                        Aprobar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={async () => {
-                          try {
-                            setProcessingId(report.id);
-                            await reportesAPI.update(report.id, {
-                              aprobado: 2,
-                              // @ts-ignore
-                              aprobadopor: parseInt(coordinatorId)
-                            });
-                            await fetchReports();
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setProcessingId(null);
-                          }
-                        }}
-                        disabled={processingId === report.id}
-                      >
-                        {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
-                        Rechazar
-                      </Button>
-                    </>
-                  )}
+            return (
+              <div key={report.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="font-medium text-gray-900">{report.nombre_company || report.cliente}</p>
+                    <div className="flex flex-col gap-1">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Total: {report.horas}h</span>
+                      {hasExtras && (
+                        <span className="text-xs text-amber-600 font-medium">
+                          (Normal: {breakdown.normal}h + Extra: {breakdown.extra}h)
+                        </span>
+                      )}
+                      <span>{report.nombre_area}</span>
+                    </div>
+                    {(report.aprobado === 1 || report.aprobado === 2 || report.aprobado === 3) && report.nombre_aprobador && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {report.aprobado === 1 ? 'Aprobado' : report.aprobado === 3 ? 'Aprobado (Solo Normales)' : 'Rechazado'} por: {report.nombre_aprobador}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {report.aprobado === 1 ? (
+                      <Badge className="bg-[#bbd531] text-[#303483] hover:bg-[#bbd531]/90">Aprobado</Badge>
+                    ) : report.aprobado === 2 ? (
+                      <Badge variant="destructive">Rechazado</Badge>
+                    ) : report.aprobado === 3 ? (
+                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100/80">Aprobado (Solo Normales)</Badge>
+                    ) : (
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          className="bg-[#303483] hover:bg-[#303483]/90"
+                          onClick={async () => {
+                            try {
+                              setProcessingId(report.id);
+                              await reportesAPI.update(report.id, {
+                                aprobado: 1,
+                                // @ts-ignore
+                                aprobadopor: parseInt(coordinatorId)
+                              });
+                              await fetchReports();
+                            } catch (e) {
+                              console.error(e);
+                            } finally {
+                              setProcessingId(null);
+                            }
+                          }}
+                          disabled={processingId === report.id}
+                        >
+                          {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                          Aprobar Todo
+                        </Button>
+
+                        {hasExtras && (
+                          <Button
+                            size="sm"
+                            style={{ backgroundColor: '#7c3aed', color: 'white' }}
+                            className="hover:opacity-90"
+                            onClick={async () => {
+                              try {
+                                setProcessingId(report.id);
+                                await reportesAPI.update(report.id, {
+                                  aprobado: 3,
+                                  // @ts-ignore
+                                  aprobadopor: parseInt(coordinatorId)
+                                });
+                                await fetchReports();
+                              } catch (e) {
+                                console.error(e);
+                              } finally {
+                                setProcessingId(null);
+                              }
+                            }}
+                            disabled={processingId === report.id}
+                            title="Aprobar solo horas normales, rechazar extras"
+                          >
+                            {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                            Aprobar Sin Extras
+                          </Button>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={async () => {
+                            try {
+                              setProcessingId(report.id);
+                              await reportesAPI.update(report.id, {
+                                aprobado: 2,
+                                // @ts-ignore
+                                aprobadopor: parseInt(coordinatorId)
+                              });
+                              await fetchReports();
+                            } catch (e) {
+                              console.error(e);
+                            } finally {
+                              setProcessingId(null);
+                            }
+                          }}
+                          disabled={processingId === report.id}
+                        >
+                          {processingId === report.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
+                          Rechazar Todo
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     );
@@ -446,7 +609,24 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                     <span className="font-medium text-gray-900 group-hover:text-[#303483]">{emp.name}</span>
                   </div>
 
-                  <div className="mt-auto">
+                  <div className="mt-auto pt-2 space-y-1 text-xs">
+                    {(() => {
+                      // Calcular total de extras del empleado en la fecha
+                      const breakdownTotal = emp.reports.reduce((acc, r) => {
+                        const bd = calculateHoursBreakdown(r);
+                        return { normal: acc.normal + bd.normal, extra: acc.extra + bd.extra };
+                      }, { normal: 0, extra: 0 });
+
+                      if (breakdownTotal.extra > 0) {
+                        return (
+                          <div className="mb-2 p-1 bg-amber-50 text-amber-700 rounded border border-amber-100 text-center">
+                            Tiene {breakdownTotal.extra.toFixed(1)}h Extras
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-gray-500">Reportes:</span>
                       <span className="font-medium">{total}</span>
@@ -471,16 +651,36 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   if (view === 'technicians') {
     return (
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-          <div className="flex items-center gap-4">
+        <CardHeader>
+          <div className="flex items-center gap-4 mb-4">
             <Button variant="ghost" size="icon" onClick={() => setView('calendar')}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <CardTitle>Consolidado Mensual por Técnico</CardTitle>
+              <CardTitle>Consolidado por Técnico</CardTitle>
               <CardDescription>
-                Total de horas registradas en {format(new Date(), 'MMMM', { locale: es })} (Todos los clientes)
+                Total de horas registradas por empleado (Todos los clientes)
               </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Desde</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Hasta</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              />
             </div>
           </div>
         </CardHeader>
@@ -711,9 +911,51 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       <span className="text-red-600">✗ Rechazadas:</span>
                       <span className="font-medium">{week.rejected}h</span>
                     </div>
+                    {week.extraHours > 0 && (
+                      <div className="flex justify-between text-sm border-t pt-1 mt-1">
+                        <span className="text-amber-600 font-medium">⚡ Horas Extras:</span>
+                        <span className="font-bold text-amber-600">{week.extraHours.toFixed(1)}h</span>
+                      </div>
+                    )}
+                  </div>
+                 
+
+                  {/* Desglose por cliente */}
+                  <div className="mt-4 pt-3 border-t space-y-3">
+                    {Array.from(week.byClient.entries()).map(([key, data]) => (
+                      <div key={key} className="text-sm border-b border-dashed pb-2 last:border-0 last:pb-0">
+                        <div className="font-medium text-gray-700 mb-1">{data.name}</div>
+                        {/* Barra de progreso por cliente */}
+                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden flex mb-2">
+                          {data.approved > 0 && (
+                            <div
+                              className="bg-[#bbd531] h-full"
+                              style={{ width: `${(data.approved / data.total) * 100}%` }}
+                            />
+                          )}
+                          {data.pending > 0 && (
+                            <div
+                              className="bg-blue-400 h-full"
+                              style={{ width: `${(data.pending / data.total) * 100}%` }}
+                            />
+                          )}
+                          {data.rejected > 0 && (
+                            <div
+                              className="bg-red-400 h-full"
+                              style={{ width: `${(data.rejected / data.total) * 100}%` }}
+                            />
+                          )}
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Tot: {data.total}h</span>
+                          <span className="text-green-600">Apr: {data.approved}h</span>
+                          <span className="text-blue-600">Pend: {data.pending}h</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {/* Progress bar */}
-                  <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                  <div className="mt-4 h-2 bg-gray-200 rounded-full overflow-hidden flex">
                     {week.approved > 0 && (
                       <div
                         className="bg-[#bbd531] h-full"
@@ -733,21 +975,6 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       />
                     )}
                   </div>
-
-                  {/* Desglose por cliente */}
-                  <div className="mt-4 pt-3 border-t space-y-3">
-                    {Array.from(week.byClient.entries()).map(([key, data]) => (
-                      <div key={key} className="text-sm border-b border-dashed pb-2 last:border-0 last:pb-0">
-                        <div className="font-medium text-gray-700 mb-1">{data.name}</div>
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Tot: {data.total}h</span>
-                          <span className="text-green-600">Apr: {data.approved}h</span>
-                          <span className="text-blue-600">Pend: {data.pending}h</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
                   {/* Botones de aprobación/rechazo de semana */}
                   {week.pending > 0 && (
                     <div className="mt-4 pt-3 border-t flex gap-2">
@@ -793,6 +1020,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
             </div>
 
             {/* NUEVA SECCIÓN: Resumen por Usuario */}
+            {/* ... (omitido por brevedad, se mantiene igual si no se toca) */}
             <div className="mt-12">
               <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <User className="w-5 h-5 text-[#303483]" />

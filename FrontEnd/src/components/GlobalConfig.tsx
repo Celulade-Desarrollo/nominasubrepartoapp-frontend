@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Settings, Save, Loader2, Info } from 'lucide-react';
+import { Settings, Save, Loader2, Clock } from 'lucide-react';
 import { settingsAPI } from '../services/api';
 import { Alert, AlertDescription } from './ui/alert';
 
@@ -13,16 +13,9 @@ export function GlobalConfig() {
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     // Local form state
-    const [weeklyLimit, setWeeklyLimit] = useState<string>('44');
-    const [dailyLimits, setDailyLimits] = useState({
-        monday: 9,
-        tuesday: 9,
-        wednesday: 9,
-        thursday: 9,
-        friday: 8,
-        saturday: 0,
-        sunday: 0
-    });
+    const [normalHoursStart, setNormalHoursStart] = useState<string>('07:30');
+    const [normalHoursEnd, setNormalHoursEnd] = useState<string>('17:30');
+    const [normalHoursEndFriday, setNormalHoursEndFriday] = useState<string>('16:30');
 
     useEffect(() => {
         loadSettings();
@@ -33,8 +26,9 @@ export function GlobalConfig() {
             setLoading(true);
             const data = await settingsAPI.getAll();
             if (data) {
-                if (data.weekly_limit) setWeeklyLimit(data.weekly_limit.toString());
-                if (data.daily_limits) setDailyLimits(data.daily_limits);
+                if (data.normal_hours_start) setNormalHoursStart(data.normal_hours_start.replace(/"/g, ''));
+                if (data.normal_hours_end) setNormalHoursEnd(data.normal_hours_end.replace(/"/g, ''));
+                if (data.normal_hours_end_friday) setNormalHoursEndFriday(data.normal_hours_end_friday.replace(/"/g, ''));
             }
         } catch (error) {
             console.error("Error loading settings:", error);
@@ -49,8 +43,9 @@ export function GlobalConfig() {
             setMessage(null);
 
             await Promise.all([
-                settingsAPI.update({ key: 'weekly_limit', value: parseInt(weeklyLimit) }),
-                settingsAPI.update({ key: 'daily_limits', value: dailyLimits })
+                settingsAPI.update({ key: 'normal_hours_start', value: normalHoursStart }),
+                settingsAPI.update({ key: 'normal_hours_end', value: normalHoursEnd }),
+                settingsAPI.update({ key: 'normal_hours_end_friday', value: normalHoursEndFriday })
             ]);
 
             setMessage({ type: 'success', text: 'Configuración guardada correctamente' });
@@ -61,12 +56,6 @@ export function GlobalConfig() {
         } finally {
             setSaving(false);
         }
-    };
-
-    const updateDailyLimit = (day: string, value: string) => {
-        const num = parseFloat(value);
-        if (isNaN(num)) return;
-        setDailyLimits(prev => ({ ...prev, [day]: num }));
     };
 
     if (loading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-[#303483]" /></div>;
@@ -92,50 +81,50 @@ export function GlobalConfig() {
                         </Alert>
                     )}
 
-                    <div className="max-w-md space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="weeklyLimit">Límite Semanal Total (Horas)</Label>
-                            <Input
-                                id="weeklyLimit"
-                                type="number"
-                                value={weeklyLimit}
-                                onChange={(e) => setWeeklyLimit(e.target.value)}
-                                className="font-bold text-lg"
-                            />
-                            <p className="text-xs text-gray-500">Actualmente establecido en 44 horas semanales.</p>
-                        </div>
-                    </div>
-
+                    {/* Configuración de Horas Extras */}
                     <div className="space-y-4 border-t pt-6">
                         <h3 className="font-medium flex items-center gap-2">
-                            Límites Diarios Máximos
-                            <Info className="w-4 h-4 text-gray-400" />
+                            <Clock className="w-4 h-4 text-[#303483]" />
+                            Configuración de Horas Extras
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                            {[
-                                { id: 'monday', label: 'Lunes' },
-                                { id: 'tuesday', label: 'Martes' },
-                                { id: 'wednesday', label: 'Miércoles' },
-                                { id: 'thursday', label: 'Jueves' },
-                                { id: 'friday', label: 'Viernes' },
-                                { id: 'saturday', label: 'Sábado' },
-                                { id: 'sunday', label: 'Domingo' }
-                            ].map(day => (
-                                <div key={day.id} className="space-y-2">
-                                    <Label htmlFor={day.id} className="text-xs uppercase text-gray-500">{day.label}</Label>
-                                    <Input
-                                        id={day.id}
-                                        type="number"
-                                        step="0.5"
-                                        value={(dailyLimits as any)[day.id]}
-                                        onChange={(e) => updateDailyLimit(day.id, e.target.value)}
-                                        className={(dailyLimits as any)[day.id] === 0 ? "bg-gray-100" : ""}
-                                    />
-                                </div>
-                            ))}
+                        <p className="text-sm text-gray-600">
+                            Define el horario laboral normal. Las horas trabajadas fuera de este rango se considerarán horas extras.
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 max-w-md">
+                            <div className="space-y-2">
+                                <Label htmlFor="normalStart">Hora Inicio Normal</Label>
+                                <Input
+                                    id="normalStart"
+                                    type="time"
+                                    value={normalHoursStart}
+                                    onChange={(e) => setNormalHoursStart(e.target.value)}
+                                    className="font-mono"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="normalEnd">Hora Fin Normal</Label>
+                                <Input
+                                    id="normalEnd"
+                                    type="time"
+                                    value={normalHoursEnd}
+                                    onChange={(e) => setNormalHoursEnd(e.target.value)}
+                                    className="font-mono"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="normalEndFriday">Hora Fin Normal (Viernes)</Label>
+                                <Input
+                                    id="normalEndFriday"
+                                    type="time"
+                                    value={normalHoursEndFriday}
+                                    onChange={(e) => setNormalHoursEndFriday(e.target.value)}
+                                    className="font-mono"
+                                />
+                            </div>
                         </div>
-                        <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-100">
-                            💡 Establezca 0 para deshabilitar el registro en un día específico (ej. Sábados y Domingos).
+                        <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-100">
+                            ⏰ Horario normal: L-J hasta <strong>{normalHoursEnd}</strong>, Viernes hasta <strong>{normalHoursEndFriday}</strong>.
+                            Trabajo antes o después de este horario = horas extras.
                         </p>
                     </div>
 

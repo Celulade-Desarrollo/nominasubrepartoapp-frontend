@@ -62,10 +62,17 @@ export interface Reporte {
     created_at: string;
     horas: number;
     fecha_trabajada?: string;
+    hora_inicio?: string;
+    hora_fin?: string;
+    descripcion?: string;
+    tipo_actividad?: string;
+    latitud?: number;
+    longitud?: number;
+    firma?: string; // Base64
     cliente: string;
     documento_id: number;
     area_trabajo: number;
-    aprobado?: number; // 0: pendiente, 1: aprobado, 2: rechazado
+    aprobado?: number; // 0: pendiente, 1: aprobado, 2: rechazado, 3: aprobado solo normales
     aprobadopor?: number;
     nombre_company?: string;
     nombre_area?: string;
@@ -147,9 +154,9 @@ export const reportesAPI = {
     getByDocumento: (documentoId: number) => fetchAPI<Reporte[]>(`/Reportes/documento/${documentoId}`),
     getByCliente: (clienteId: string) => fetchAPI<Reporte[]>(`/Reportes/cliente/${clienteId}`),
     getByCoordinador: (coordinadorId: string) => fetchAPI<Reporte[]>(`/Reportes/coordinador/${coordinadorId}`),
-    create: (data: { horas: number; fecha_trabajada: string; cliente: string; documento_id: number; area_trabajo: number; aprobado?: number }) =>
+    create: (data: { horas: number; fecha_trabajada: string; cliente: string; documento_id: number; area_trabajo: number; aprobado?: number; hora_inicio?: string; hora_fin?: string; descripcion?: string; tipo_actividad?: string; latitud?: number; longitud?: number; firma?: string }) =>
         fetchAPI<Reporte>('/Reportes', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: { horas?: number; cliente?: string; documento_id?: number; area_trabajo?: number; aprobado?: number }) =>
+    update: (id: number, data: { horas?: number; cliente?: string; documento_id?: number; area_trabajo?: number; aprobado?: number; hora_inicio?: string; hora_fin?: string; aprobadopor?: number; descripcion?: string; tipo_actividad?: string; latitud?: number; longitud?: number; firma?: string }) =>
         fetchAPI<Reporte>(`/Reportes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) =>
         fetchAPI<{ message: string; deleted: Reporte }>(`/Reportes/${id}`, { method: 'DELETE' }),

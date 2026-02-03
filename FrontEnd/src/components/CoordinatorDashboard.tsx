@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { CoordinatorConfig } from './CoordinatorConfig';
-import { LogOut, Clock, CheckCircle, Loader2, Settings } from 'lucide-react';
+import { LogOut, Clock, CheckCircle, Loader2, Settings, FileBarChart } from 'lucide-react';
 import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
 import { PayrollReview } from './PayrollReview';
+import { OvertimeReport } from './OvertimeReport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { areasEnCompanyAPI, reportesAPI } from '../services/api';
 import type { User } from '../App';
@@ -96,7 +97,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
     }
   };
 
-  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string) => {
+  const handleSaveHours = async (clienteId: string, horas: number, fecha: Date, areaCliente?: string, horaInicio?: string, horaFin?: string, descripcion?: string, tipoActividad?: string, latitud?: number, longitud?: number, firma?: string) => {
     try {
       const cliente = clientes.find(c => c.elementoPEP === clienteId);
       if (!cliente) return;
@@ -116,7 +117,14 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         cliente: clienteId,
         documento_id: parseInt(user.cedula),
         area_trabajo: areaTrabajoId,
-        aprobado: 1 // Auto-approve for coordinators
+        aprobado: 1, // Auto-approve for coordinators
+        hora_inicio: horaInicio,
+        hora_fin: horaFin,
+        descripcion,
+        tipo_actividad: tipoActividad,
+        latitud,
+        longitud,
+        firma
       });
 
       const newRecord: HoursRecord = {
@@ -197,6 +205,13 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
               <Settings className="w-4 h-4 mr-2" />
               Configuración
             </TabsTrigger>
+            <TabsTrigger
+              value="overtime"
+              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
+            >
+              <FileBarChart className="w-4 h-4 mr-2" />
+              Reporte Extras
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="hours" className="space-y-6">
@@ -235,6 +250,10 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
           <TabsContent value="config">
             <CoordinatorConfig coordinatorId={user.cedula} />
+          </TabsContent>
+
+          <TabsContent value="overtime">
+            <OvertimeReport />
           </TabsContent>
         </Tabs>
       </main >

@@ -1,28 +1,20 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
-import { Save, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Save, ChevronLeft, ChevronRight, AlertTriangle, MapPin, PenTool, Eraser } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { HoursRecord } from './HoursHistoryByDate';
 import { areasEnCompanyAPI } from '../services/api';
 
-// Fallback limits if settings not loaded
+// Fallback limit if settings not loaded
 const WEEKLY_HOURS_LIMIT_DEFAULT = 44;
-const DAILY_LIMITS_DEFAULT = {
-  1: 9, // Lunes
-  2: 9, // Martes
-  3: 9, // Miércoles
-  4: 9, // Jueves
-  5: 8, // Viernes
-  6: 0, // Sábado
-  0: 0  // Domingo
-};
 
 interface Cliente {
   id: string;
@@ -35,7 +27,7 @@ interface Cliente {
 
 interface CalendarHoursEntryProps {
   clientes: Cliente[];
-  onSave: (clienteId: string, horas: number, fecha: Date, areaCliente?: string) => void;
+  onSave: (clienteId: string, horas: number, fecha: Date, areaCliente?: string, horaInicio?: string, horaFin?: string, descripcion?: string, tipoActividad?: string, latitud?: number, longitud?: number, firma?: string) => void;
   existingRecords?: HoursRecord[];
   recordToEdit?: HoursRecord | null;
   onCancelEdit?: () => void;
@@ -54,28 +46,27 @@ export function CalendarHoursEntry({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<string>('');
-  const [horas, setHoras] = useState<string>('');
+  const [horaInicio, setHoraInicio] = useState<string>('07:30');
+  const [horaFin, setHoraFin] = useState<string>('17:30');
   const [areaCliente, setAreaCliente] = useState<string>('');
   const [dynamicAreas, setDynamicAreas] = useState<string[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
   const [weeklyHoursError, setWeeklyHoursError] = useState<string | null>(null);
 
-  // Get active limits from settings or default
+  // Advanced Reporting State
+  const [descripcion, setDescripcion] = useState('');
+  const [tipoActividad, setTipoActividad] = useState('En Oficina');
+  const [ubicacion, setUbicacion] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [ubicacionRechazada, setUbicacionRechazada] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [firma, setFirma] = useState<string | null>(null);
+
+  // Get active limits from settings or default (for weekly hours info display only)
   const activeWeeklyLimit = settings?.weekly_limit || WEEKLY_HOURS_LIMIT_DEFAULT;
-  const activeDailyLimits = useMemo(() => {
-    if (settings?.daily_limits) {
-      return {
-        1: settings.daily_limits.monday,
-        2: settings.daily_limits.tuesday,
-        3: settings.daily_limits.wednesday,
-        4: settings.daily_limits.thursday,
-        5: settings.daily_limits.friday,
-        6: settings.daily_limits.saturday,
-        0: settings.daily_limits.sunday
-      };
-    }
-    return DAILY_LIMITS_DEFAULT;
-  }, [settings]);
+  // Note: activeDailyLimits removed as limits are no longer enforced
 
   // Calcular horas de la semana para una fecha dada
   const getWeeklyHours = (date: Date): number => {
@@ -110,7 +101,15 @@ export function CalendarHoursEntry({
     if (recordToEdit) {
       setSelectedDate(new Date(recordToEdit.fecha + 'T12:00:00')); // Use noon to avoid timezone overlaps
       setSelectedCliente(recordToEdit.clienteId);
-      setHoras(recordToEdit.horas.toString());
+      // Si el record tiene hora_inicio/hora_fin, usarlas; si no, calcular a partir de horas
+      if ((recordToEdit as any).hora_inicio) {
+        setHoraInicio((recordToEdit as any).hora_inicio);
+        setHoraFin((recordToEdit as any).hora_fin || '17:30');
+      } else {
+        // Fallback para registros antiguos sin hora
+        setHoraInicio('07:30');
+        setHoraFin('17:30');
+      }
       setAreaCliente(recordToEdit.areaCliente || '');
       setDialogOpen(true);
     }
@@ -166,10 +165,121 @@ export function CalendarHoursEntry({
     if (!open) {
       // Reset form if closing
       setSelectedCliente('');
-      setHoras('');
+      setHoraInicio('07:30');
+      setHoraFin('17:30');
       setAreaCliente('');
+      setDescripcion('');
+      setTipoActividad('En Oficina');
+      setUbicacion(null);
+      setFirma(null);
+      setLocationError(null);
     }
   };
+
+  // Canvas Logic
+  useEffect(() => {
+    if (dialogOpen && tipoActividad === 'En Cliente' && canvasRef.current) {
+      // Init canvas context if needed
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+      }
+    }
+  }, [dialogOpen, tipoActividad]);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    setIsDrawing(true);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    // Scale coordinates from CSS space to canvas space
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (('clientX' in e ? e.clientX : e.touches[0].clientX) - rect.left) * scaleX;
+    const y = (('clientY' in e ? e.clientY : e.touches[0].clientY) - rect.top) * scaleY;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    // Scale coordinates from CSS space to canvas space
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (('clientX' in e ? e.clientX : e.touches[0].clientX) - rect.left) * scaleX;
+    const y = (('clientY' in e ? e.clientY : e.touches[0].clientY) - rect.top) * scaleY;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      setFirma(canvas.toDataURL());
+    }
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    setFirma(null);
+  };
+
+  // Geolocation Logic
+  const getLocation = () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    setUbicacionRechazada(false);
+
+    if (!navigator.geolocation) {
+      setLocationError("Geolocalización no soportada por el navegador");
+      setUbicacionRechazada(true);
+      setLocationLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUbicacion({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setUbicacionRechazada(false);
+        setLocationLoading(false);
+      },
+      (error) => {
+        // Usuario rechazó permisos o hay error de geolocalización
+        setLocationError("El usuario rechazó compartir la ubicación");
+        setUbicacionRechazada(true);
+        setLocationLoading(false);
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (dialogOpen && tipoActividad === 'En Cliente' && !ubicacion) {
+      getLocation();
+    }
+  }, [dialogOpen, tipoActividad]);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -177,8 +287,23 @@ export function CalendarHoursEntry({
 
   const handleDayClick = (date: Date) => {
     if (date > new Date()) return; // No permitir fechas futuras
-    if (date.getDay() === 0) return; // No permitir domingos
+
     setSelectedDate(date);
+
+    // Configurar hora fin por defecto según el día y settings
+    // Usar settings si existen, sino usar defaults
+    const defaultStart = settings?.normal_hours_start ? settings.normal_hours_start.replace(/"/g, '') : '07:30';
+    const defaultEnd = settings?.normal_hours_end ? settings.normal_hours_end.replace(/"/g, '') : '17:30';
+    const defaultEndFriday = settings?.normal_hours_end_friday ? settings.normal_hours_end_friday.replace(/"/g, '') : '16:30';
+
+    setHoraInicio(defaultStart);
+
+    if (date.getDay() === 5) { // Viernes
+      setHoraFin(defaultEndFriday);
+    } else {
+      setHoraFin(defaultEnd);
+    }
+
     setDialogOpen(true);
   };
 
@@ -195,7 +320,8 @@ export function CalendarHoursEntry({
       return;
     }
 
-    if (!horas || parseFloat(horas) <= 0) {
+    if (!horaInicio || !horaFin) {
+      setWeeklyHoursError('Debe ingresar hora de inicio y fin');
       return;
     }
 
@@ -203,41 +329,59 @@ export function CalendarHoursEntry({
       return;
     }
 
-    const horasNumero = parseFloat(horas);
-    const dayOfWeek = selectedDate.getDay() as keyof typeof activeDailyLimits;
+    // Calcular horas a partir de hora inicio y fin
+    const [hiHoras, hiMin] = horaInicio.split(':').map(Number);
+    const [hfHoras, hfMin] = horaFin.split(':').map(Number);
+    const inicioMinutos = hiHoras * 60 + hiMin;
+    const finMinutos = hfHoras * 60 + hfMin;
 
-    // Validar Límite Diario dinámico (incluye Sábado/Domingo si es 0)
-    const maxPermitido = activeDailyLimits[dayOfWeek];
-
-    if (horasNumero > maxPermitido) {
-      if (maxPermitido === 0) {
-        setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
-      } else {
-        setWeeklyHoursError(`Para este día el máximo permitido es de ${maxPermitido} horas.`);
-      }
+    if (finMinutos <= inicioMinutos) {
+      setWeeklyHoursError('La hora de fin debe ser mayor que la hora de inicio');
       return;
     }
 
-    // Validar límite semanal
-    if (horasNumero > weeklyHoursInfo.remaining) {
-      setWeeklyHoursError(
-        `No puedes registrar ${horasNumero}h. Solo te quedan ${weeklyHoursInfo.remaining}h disponibles esta semana (límite: ${activeWeeklyLimit}h).`
-      );
-      return;
+    const horasCalculadas = (finMinutos - inicioMinutos) / 60;
+
+    if (tipoActividad === 'En Cliente') {
+      // Si no hay ubicación Y tampoco fue rechazada, solicitar ubicación
+      if (!ubicacion && !ubicacionRechazada) {
+        setWeeklyHoursError('Se requiere ubicación para actividades en cliente');
+        return;
+      }
+      if (!firma) {
+        setWeeklyHoursError('Se requiere firma para actividades en cliente');
+        return;
+      }
     }
 
     const areaClienteValue = areaCliente.trim();
 
-    onSave(selectedCliente, horasNumero, selectedDate, areaClienteValue);
+    onSave(
+      selectedCliente,
+      horasCalculadas,
+      selectedDate,
+      areaClienteValue,
+      horaInicio,
+      horaFin,
+      descripcion,
+      tipoActividad,
+      ubicacion?.lat,
+      ubicacion?.lng,
+      firma || undefined
+    );
     setDialogOpen(false);
     setWeeklyHoursError(null);
 
-    // Reset is handled by useEffect or handleOpenChange if strictly needed, 
-    // but usually good to reset here too for creating new entries
+    // Reset for creating new entries
     if (!recordToEdit) {
       setSelectedCliente('');
-      setHoras('');
+      setHoraInicio('07:30');
+      setHoraFin('17:30');
       setAreaCliente('');
+      setDescripcion('');
+      setTipoActividad('En Oficina');
+      setUbicacion(null);
+      setFirma(null);
     }
   };
 
@@ -369,9 +513,8 @@ export function CalendarHoursEntry({
               const isFuture = day > new Date();
               const hasHours = hoursForDay > 0;
 
-              // Bloquear si el límite diario para ese día es 0 en la configuración
-              const limitForDay = activeDailyLimits[day.getDay() as keyof typeof activeDailyLimits];
-              const isDisabled = isFuture || limitForDay === 0;
+              // Ya no se bloquea por límite diario - solo días futuros están deshabilitados
+              const isDisabled = isFuture;
 
               return (
                 <button
@@ -404,11 +547,7 @@ export function CalendarHoursEntry({
                         <div className="text-xs text-[#303483]">Hoy</div>
                       </div>
                     )}
-                    {!isFuture && limitForDay === 0 && (
-                      <div className="mt-auto flex justify-center">
-                        <div className="text-[10px] text-gray-400">Restringido</div>
-                      </div>
-                    )}
+                    {/* Removido indicador de día restringido - ya no hay restricciones por día */}
                   </div>
                 </button>
               );
@@ -418,15 +557,16 @@ export function CalendarHoursEntry({
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>{recordToEdit ? 'Editar Reporte' : 'Registrar Horas'}</DialogTitle>
             <DialogDescription>
               {selectedDate && format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="flex flex-col">
+            <div className="overflow-y-auto px-6 py-4 space-y-4" style={{ maxHeight: 'calc(90vh - 200px)' }}>
             <div className="space-y-2">
               <Label htmlFor="areaCliente">Área del Cliente / Proceso</Label>
               <Select value={areaCliente} onValueChange={handleAreaChange}>
@@ -482,48 +622,140 @@ export function CalendarHoursEntry({
               </p>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="horaInicio">Hora Inicio</Label>
+                <Input
+                  id="horaInicio"
+                  type="time"
+                  value={horaInicio}
+                  onChange={(e) => setHoraInicio(e.target.value)}
+                  className="font-mono"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="horaFin">Hora Fin</Label>
+                <Input
+                  id="horaFin"
+                  type="time"
+                  value={horaFin}
+                  onChange={(e) => setHoraFin(e.target.value)}
+                  className="font-mono"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Show calculated hours */}
+            {horaInicio && horaFin && (() => {
+              const [hiH, hiM] = horaInicio.split(':').map(Number);
+              const [hfH, hfM] = horaFin.split(':').map(Number);
+              const mins = (hfH * 60 + hfM) - (hiH * 60 + hiM);
+              const horasCalc = mins > 0 ? mins / 60 : 0;
+              return (
+                <div className="rounded-lg p-3 text-sm border bg-green-50 border-green-200">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Horas a registrar:</span>
+                    <span className="font-bold text-green-700">{horasCalc.toFixed(1)}h</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Description Field */}
             <div className="space-y-2">
-              <Label htmlFor="horas">Número de Horas</Label>
-              <Input
-                id="horas"
-                type="number"
-                min="0.5"
-                step="0.5"
-                value={horas}
-                onChange={(e) => setHoras(e.target.value)}
-                placeholder="8"
-                required
+              <Label htmlFor="descripcion">Descripción de Actividad</Label>
+              <Textarea
+                id="descripcion"
+                placeholder="Describe qué se hizo..."
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                rows={2}
+                className="resize-none"
               />
             </div>
 
-            {/* Información de horas semanales */}
-            <div className={`rounded-lg p-3 text-sm border ${weeklyHoursInfo.remaining < 0
-              ? 'bg-red-50 border-red-200'
-              : weeklyHoursInfo.used < activeWeeklyLimit
-                ? 'bg-amber-50 border-amber-200'
-                : 'bg-green-50 border-green-200'
-              }`}>
+            {/* Activity Type Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="tipoActividad">Tipo de Actividad</Label>
+              <Select value={tipoActividad} onValueChange={setTipoActividad}>
+                <SelectTrigger id="tipoActividad">
+                  <SelectValue placeholder="Selecciona ubicación de actividad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="En Oficina">En Oficina</SelectItem>
+                  <SelectItem value="En Cliente">En Cliente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Conditional Logic for 'En Cliente' */}
+            {tipoActividad === 'En Cliente' && (
+              <div className="space-y-4 border rounded-md p-4 bg-gray-50">
+                <div className="space-y-2">
+                  <Label>Ubicación</Label>
+                  {locationLoading ? (
+                    <div className="text-sm text-blue-600 flex items-center gap-2">
+                      <MapPin className="animate-bounce w-4 h-4" /> Obteniendo ubicación...
+                    </div>
+                  ) : ubicacion ? (
+                    <div className="text-sm text-green-600 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      Lat: {ubicacion.lat.toFixed(6)}, Lng: {ubicacion.lng.toFixed(6)}
+                    </div>
+                  ) : ubicacionRechazada ? (
+                    <div className="text-sm text-amber-600 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      El usuario rechazó compartir la ubicación
+                      <Button size="sm" variant="outline" onClick={getLocation} type="button">Reintentar</Button>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-red-600 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      {locationError || "Ubicación requerida"}
+                      <Button size="sm" variant="outline" onClick={getLocation} type="button">Reintentar</Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label>Firma del Cliente</Label>
+                    <Button size="sm" variant="ghost" onClick={clearCanvas} type="button" className="h-6 px-2 text-xs">
+                      <Eraser className="w-3 h-3 mr-1" /> Limpiar
+                    </Button>
+                  </div>
+                  <div className="border border-gray-300 rounded-md bg-white overflow-hidden touch-none">
+                    <canvas
+                      ref={canvasRef}
+                      width={400}
+                      height={100}
+                      className="w-full h-[100px] cursor-crosshair block"
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                    />
+                  </div>
+                  {!firma && <p className="text-xs text-red-500">* Firma requerida</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Información de horas semanales (solo informativo, sin restricciones) */}
+            <div className="rounded-lg p-3 text-sm border bg-blue-50 border-blue-200">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Horas esta semana:</span>
-                <span className={`font-bold ${weeklyHoursInfo.remaining < 0
-                  ? 'text-red-700'
-                  : weeklyHoursInfo.used < activeWeeklyLimit
-                    ? 'text-amber-700'
-                    : 'text-green-700'
-                  }`}>
-                  {weeklyHoursInfo.used}h / {activeWeeklyLimit}h
+                <span className="font-bold text-blue-700">
+                  {weeklyHoursInfo.used}h
                 </span>
               </div>
-              <div className="mt-1 text-xs text-gray-600 flex justify-between items-center">
-                <span>
-                  Disponibles: <span className="font-semibold">{Math.max(0, weeklyHoursInfo.remaining)}h</span>
-                </span>
-                {weeklyHoursInfo.used < activeWeeklyLimit && (
-                  <span className="text-amber-600 font-medium">Semana Incompleta</span>
-                )}
-                {weeklyHoursInfo.used >= activeWeeklyLimit && (
-                  <span className="text-green-600 font-medium">Semana Completa</span>
-                )}
+              <div className="mt-1 text-xs text-gray-600">
+                <span>Referencia: {activeWeeklyLimit}h semanales estándar</span>
               </div>
             </div>
 
@@ -538,14 +770,15 @@ export function CalendarHoursEntry({
             )}
 
             <div className="bg-[#bbd531]/10 border border-[#bbd531]/30 rounded-lg p-3 text-sm text-gray-700">
-              💡 Puedes registrar fracciones de hora (ej: 0.5, 1.5, 2.5)
+              💡 Ingresa la hora de inicio y fin de tu jornada. Las horas se calculan automáticamente.
+            </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="px-6 py-4 border-t bg-gray-50 flex gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                 Cancelar
               </Button>
-              <Button type="submit" className="flex-1" disabled={!selectedCliente || !horas || !areaCliente}>
+              <Button type="submit" className="flex-1" disabled={!selectedCliente || !horaInicio || !horaFin || !areaCliente}>
                 <Save className="w-4 h-4 mr-2" />
                 Guardar
               </Button>

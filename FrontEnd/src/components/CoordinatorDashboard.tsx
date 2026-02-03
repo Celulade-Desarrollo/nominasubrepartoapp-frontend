@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { CoordinatorConfig } from './CoordinatorConfig';
-import { LogOut, Clock, CheckCircle, Loader2, Settings, FileBarChart } from 'lucide-react';
+import { LogOut, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { CalendarHoursEntry } from './CalendarHoursEntry';
 import { CalendarInstructions } from './CalendarInstructions';
 import { HoursHistoryByDate } from './HoursHistoryByDate';
 import { PayrollReview } from './PayrollReview';
 import { OvertimeReport } from './OvertimeReport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { areasEnCompanyAPI, reportesAPI } from '../services/api';
+import { areasEnCompanyAPI, reportesAPI, settingsAPI } from '../services/api';
 import type { User } from '../App';
 import compunetLogo from '../assets/images/compunet_logo.jpg';
 
@@ -38,10 +37,21 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
   const [hoursRecords, setHoursRecords] = useState<HoursRecord[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     loadData();
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const data = await settingsAPI.getAll();
+      setSettings(data);
+    } catch (err) {
+      console.error("Error loading settings:", err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -49,12 +59,12 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
 
 
-      // PARTE 1: Cargar TODAS las empresas y áreas para GENERAR reportes (SIN FILTRO)
-      const allCompaniesWithAreas = await areasEnCompanyAPI.getAllCompanies();
+      // PARTE 1: Cargar empresas y áreas asignadas al coordinador
+      const coordinatorCompanies = await areasEnCompanyAPI.getByCoordinator(user.cedula);
 
       // Agrupar por empresa
       const companiesMap = new Map<string, Cliente>();
-      allCompaniesWithAreas.forEach((item: any) => {
+      coordinatorCompanies.forEach((item: any) => {
         if (!companiesMap.has(item.company_cliente)) {
           companiesMap.set(item.company_cliente, {
             id: item.company_cliente,
@@ -69,8 +79,8 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         }
       });
 
-      const allClientesWithAreas = Array.from(companiesMap.values());
-      setClientes(allClientesWithAreas);
+      const coordinatorClientesWithAreas = Array.from(companiesMap.values());
+      setClientes(coordinatorClientesWithAreas);
 
 
 
@@ -198,20 +208,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
               <CheckCircle className="w-4 h-4 mr-2" />
               Revisar Nómina
             </TabsTrigger>
-            <TabsTrigger
-              value="config"
-              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Configuración
-            </TabsTrigger>
-            <TabsTrigger
-              value="overtime"
-              className="flex-1 py-3 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-[#303483] data-[state=active]:text-[#303483] data-[state=active]:bg-transparent"
-            >
-              <FileBarChart className="w-4 h-4 mr-2" />
-              Reporte Extras
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="hours" className="space-y-6">
@@ -221,6 +217,7 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
               clientes={clientes}
               onSave={handleSaveHours}
               existingRecords={hoursRecords}
+              settings={settings}
             />
 
             {hoursRecords.length > 0 && (
@@ -246,14 +243,6 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
 
           <TabsContent value="review">
             <PayrollReview coordinatorId={user.cedula} />
-          </TabsContent>
-
-          <TabsContent value="config">
-            <CoordinatorConfig coordinatorId={user.cedula} />
-          </TabsContent>
-
-          <TabsContent value="overtime">
-            <OvertimeReport />
           </TabsContent>
         </Tabs>
       </main >

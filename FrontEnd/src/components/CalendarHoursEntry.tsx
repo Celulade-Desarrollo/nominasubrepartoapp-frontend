@@ -81,6 +81,14 @@ export function CalendarHoursEntry({
       .reduce((sum, record) => sum + record.horas, 0);
   };
 
+  // Calcular horas ya registradas en un día específico
+  const getDailyHours = (date: Date): number => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return existingRecords
+      .filter(record => record.fecha === dateStr)
+      .reduce((sum, record) => sum + record.horas, 0);
+  };
+
   // Calcular horas disponibles para la semana seleccionada
   const weeklyHoursInfo = useMemo(() => {
     if (!selectedDate) return { used: 0, remaining: activeWeeklyLimit };
@@ -329,14 +337,38 @@ export function CalendarHoursEntry({
       return;
     }
 
-    // Calcular horas a partir de hora inicio y fin
-    const [hiHoras, hiMin] = horaInicio.split(':').map(Number);
-    const [hfHoras, hfMin] = horaFin.split(':').map(Number);
-    const inicioMinutos = hiHoras * 60 + hiMin;
-    const finMinutos = hfHoras * 60 + hfMin;
+    // Validar que la empresa esté activa
+    const selectedCompanyData = clientes.find(c => c.elementoPEP === selectedCliente);
+    if (!selectedCompanyData) {
+      setWeeklyHoursError('Cliente no encontrado o inactivo. Por favor recarga la página y selecciona otro cliente.');
+      return;
+    }
 
-    if (finMinutos <= inicioMinutos) {
-      setWeeklyHoursError('La hora de fin debe ser mayor que la hora de inicio');
+    const horasNumero = parseFloat(horas);
+    const dayOfWeek = selectedDate.getDay() as keyof typeof activeDailyLimits;
+
+    // Validar Límite Diario dinámico (incluye Sábado/Domingo si es 0)
+    const maxPermitido = activeDailyLimits[dayOfWeek];
+
+    // Calcular horas ya registradas ese día
+    const horasYaRegistradas = getDailyHours(selectedDate);
+    // Si estamos editando, restar las horas del registro que editamos
+    const horasEditando = recordToEdit ? recordToEdit.horas : 0;
+    const horasExistentesAjustadas = horasYaRegistradas - horasEditando;
+    const totalHorasDia = horasExistentesAjustadas + horasNumero;
+
+    if (maxPermitido === 0) {
+      setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
+      return;
+    }
+
+    if (totalHorasDia > maxPermitido) {
+      const disponibles = maxPermitido - horasExistentesAjustadas;
+      if (disponibles <= 0) {
+        setWeeklyHoursError(`Ya tienes ${horasExistentesAjustadas}h registradas este día. El límite es ${maxPermitido}h.`);
+      } else {
+        setWeeklyHoursError(`No puedes registrar ${horasNumero}h. Ya tienes ${horasExistentesAjustadas}h registradas. Solo te quedan ${disponibles}h disponibles para este día (límite: ${maxPermitido}h).`);
+      }
       return;
     }
 

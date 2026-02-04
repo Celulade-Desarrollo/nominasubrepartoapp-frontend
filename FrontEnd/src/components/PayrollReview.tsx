@@ -483,8 +483,12 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                         )}
                         {report.firma && (
                           <button
-                            onClick={() => setSelectedFirma(report.firma || null)}
-                            className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFirma(report.firma || null);
+                            }}
+                            className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <FileSignature className="w-3 h-3" />
                             Ver firma

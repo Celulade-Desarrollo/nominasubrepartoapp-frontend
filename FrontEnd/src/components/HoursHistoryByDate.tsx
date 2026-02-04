@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, Edit2, CheckCircle, XCircle, Clock, MapPin, FileSignature } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 
 export interface HoursRecord {
   id?: number;
@@ -32,14 +30,6 @@ interface HoursHistoryByDateProps {
 }
 
 export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps) {
-  const [selectedFirma, setSelectedFirma] = useState<string | null>(null);
-
-  // Debug: Monitor selectedFirma and dialog state
-  useEffect(() => {
-    console.log('selectedFirma cambió a:', selectedFirma);
-    console.log('Dialog debería estar:', selectedFirma ? 'ABIERTO' : 'CERRADO');
-    console.log('!!selectedFirma evalúa a:', !!selectedFirma);
-  }, [selectedFirma]);
 
   // Agrupar registros por fecha
   const groupedByDate = records.reduce((acc, record) => {
@@ -188,21 +178,15 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
                                     </a>
                                   )}
                                   {record.firma && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        console.log('Click en Ver firma detectado', record.firma);
-                                        console.log('Estado actual selectedFirma:', selectedFirma);
-                                        setSelectedFirma(record.firma || null);
-                                        console.log('Estado después de setSelectedFirma');
-                                      }}
-                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
+                                    <a
+                                      href={record.firma}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
                                     >
                                       <FileSignature className="w-3 h-3" />
                                       Ver firma
-                                    </button>
+                                    </a>
                                   )}
                                 </div>
                               )}
@@ -238,40 +222,6 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
           </div>
         </CardContent>
       </Card>
-
-      {/* Dialog para mostrar la firma - FUERA del Card */}
-      <Dialog
-        open={!!selectedFirma}
-        onOpenChange={(open) => {
-          console.log('Dialog onOpenChange llamado con open:', open);
-          if (!open) {
-            console.log('Cerrando dialog, limpiando selectedFirma');
-            setSelectedFirma(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-md z-[9999]" style={{ zIndex: 9999 }}>
-          <DialogHeader>
-            <DialogTitle>Firma del Reporte</DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center p-4">
-            {selectedFirma ? (
-              <>
-                <img
-                  src={selectedFirma}
-                  alt="Firma"
-                  className="max-w-full border rounded-lg"
-                  onLoad={() => console.log('Imagen de firma cargada')}
-                  onError={() => console.log('Error al cargar imagen de firma')}
-                />
-                {console.log('Renderizando imagen con src length:', selectedFirma.length)}
-              </>
-            ) : (
-              <p>No hay firma disponible</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

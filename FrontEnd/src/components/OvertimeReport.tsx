@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Download, Loader2, Filter } from 'lucide-react';
 import { reportesAPI, settingsAPI, Reporte, Area, areasAPI } from '../services/api';
-import { parseISO } from 'date-fns';
+import { parseISO, format } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 export function OvertimeReport() {
     const [dateFrom, setDateFrom] = useState('');
@@ -139,6 +140,51 @@ export function OvertimeReport() {
 
     const totalExtras = summaryList.reduce((sum, item) => sum + item.extra, 0);
 
+    // Function to export to Excel
+    const handleExportToExcel = () => {
+        // Prepare data for Excel
+        const excelData = summaryList.map(item => ({
+            'Empleado': item.name,
+            'Área': item.area,
+            'Horas Normales': item.normal.toFixed(2),
+            'Horas Extras': item.extra.toFixed(2),
+            'Total Horas': item.total.toFixed(2)
+        }));
+
+        // Add total row
+        excelData.push({
+            'Empleado': 'TOTAL',
+            'Área': '',
+            'Horas Normales': summaryList.reduce((sum, item) => sum + item.normal, 0).toFixed(2),
+            'Horas Extras': totalExtras.toFixed(2),
+            'Total Horas': summaryList.reduce((sum, item) => sum + item.total, 0).toFixed(2)
+        });
+
+        // Create worksheet
+        const ws = XLSX.utils.json_to_sheet(excelData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 30 }, // Empleado
+            { wch: 20 }, // Área
+            { wch: 15 }, // Horas Normales
+            { wch: 15 }, // Horas Extras
+            { wch: 15 }  // Total Horas
+        ];
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Horas Extras');
+
+        // Generate filename with date range
+        const fromDate = dateFrom ? format(new Date(dateFrom), 'dd-MM-yyyy') : 'inicio';
+        const toDate = dateTo ? format(new Date(dateTo), 'dd-MM-yyyy') : 'fin';
+        const filename = `Reporte_Horas_Extras_${fromDate}_a_${toDate}.xlsx`;
+
+        // Download
+        XLSX.writeFile(wb, filename);
+    };
+
     return (
         <Card className="w-full">
             <CardHeader>
@@ -188,8 +234,20 @@ export function OvertimeReport() {
                 ) : (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between bg-amber-50 p-4 rounded-lg border border-amber-100">
-                            <span className="text-amber-800 font-medium">Total Horas Extras del Mes</span>
-                            <span className="text-2xl font-bold text-amber-600">{totalExtras.toFixed(2)}h</span>
+                            <div className="flex items-center gap-4">
+                                <div>
+                                    <span className="text-amber-800 font-medium">Total Horas Extras del Mes: </span>
+                                    <span className="text-2xl font-black text-amber-600 ml-4">{totalExtras.toFixed(2)}h</span>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleExportToExcel}
+                                className="bg-[#303483] hover:bg-[#303483]/90"
+                                disabled={summaryList.length === 0}
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Descargar Excel
+                            </Button>
                         </div>
 
                         <div className="rounded-md border">

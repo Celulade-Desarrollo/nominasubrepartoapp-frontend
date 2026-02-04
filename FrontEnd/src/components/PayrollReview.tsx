@@ -40,6 +40,12 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   // Signature dialog state
   const [selectedFirma, setSelectedFirma] = useState<string | null>(null);
 
+  // Debug: Monitor selectedFirma changes
+  useEffect(() => {
+    console.log('selectedFirma cambió a:', selectedFirma);
+    console.log('Dialog debería estar:', selectedFirma ? 'ABIERTO' : 'CERRADO');
+  }, [selectedFirma]);
+
   // Initialize date range (current month)
   useEffect(() => {
     const now = new Date();
@@ -485,10 +491,15 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                           <button
                             type="button"
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
+                              console.log('Click en Ver firma detectado', report.firma);
+                              console.log('Estado actual selectedFirma:', selectedFirma);
                               setSelectedFirma(report.firma || null);
+                              console.log('Estado después de setSelectedFirma');
                             }}
                             className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
+                            style={{ pointerEvents: 'auto' }}
                           >
                             <FileSignature className="w-3 h-3" />
                             Ver firma

@@ -40,12 +40,6 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   // Signature dialog state
   const [selectedFirma, setSelectedFirma] = useState<string | null>(null);
 
-  // Debug: Monitor selectedFirma changes
-  useEffect(() => {
-    console.log('selectedFirma cambió a:', selectedFirma);
-    console.log('Dialog debería estar:', selectedFirma ? 'ABIERTO' : 'CERRADO');
-  }, [selectedFirma]);
-
   // Initialize date range (current month)
   useEffect(() => {
     const now = new Date();

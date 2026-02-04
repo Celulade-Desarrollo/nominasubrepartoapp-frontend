@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Edit2, CheckCircle, XCircle, Clock, MapPin, FileSignature } from 'lucide-react';
+import { CalendarIcon, Edit2, CheckCircle, XCircle, Clock, MapPin } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 
@@ -162,31 +162,30 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
                                 )}
                               </div>
 
-                              {/* Ubicación y firma */}
-                              {(record.latitud || record.firma) && (
-                                <div className="flex gap-2 mt-2">
-                                  {record.latitud && record.longitud && (
-                                    <a
-                                      href={`https://www.google.com/maps?q=${record.latitud},${record.longitud}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                    >
-                                      <MapPin className="w-3 h-3" />
-                                      Ver ubicación
-                                    </a>
-                                  )}
-                                  {record.firma && (
-                                    <a
-                                      href={record.firma}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                                    >
-                                      <FileSignature className="w-3 h-3" />
-                                      Ver firma
-                                    </a>
-                                  )}
+                              {/* Ubicación */}
+                              {record.latitud && record.longitud && (
+                                <div className="mt-2">
+                                  <a
+                                    href={`https://www.google.com/maps?q=${record.latitud},${record.longitud}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                  >
+                                    <MapPin className="w-3 h-3" />
+                                    Ver ubicación
+                                  </a>
+                                </div>
+                              )}
+
+                              {/* Firma */}
+                              {record.firma && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-gray-600 mb-1">Firma:</p>
+                                  <img
+                                    src={record.firma}
+                                    alt="Firma del cliente"
+                                    className="max-w-[200px] border rounded"
+                                  />
                                 </div>
                               )}
                             </div>

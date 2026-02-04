@@ -767,7 +767,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
         <CardContent>
           {monthlyTechnicianSummary.length > 0 && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
-              Mostrando registros desde <span className="font-semibold">{format(new Date(dateFrom), "d 'de' MMMM 'de' yyyy", { locale: es })}</span> hasta <span className="font-semibold">{format(new Date(dateTo), "d 'de' MMMM 'de' yyyy", { locale: es })}</span>
+              Mostrando registros desde <span className="font-semibold">{format(parseISO(dateFrom), "d 'de' MMMM 'de' yyyy", { locale: es })}</span> hasta <span className="font-semibold">{format(parseISO(dateTo), "d 'de' MMMM 'de' yyyy", { locale: es })}</span>
             </div>
           )}
           <div className="overflow-x-auto">

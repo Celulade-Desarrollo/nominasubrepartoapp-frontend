@@ -135,6 +135,11 @@ export function OvertimeReport() {
             return acc;
         }
 
+        // Solo incluir reportes aprobados (1 o 3), excluir pendientes (0/undefined) y rechazados (2)
+        if (report.aprobado !== 1 && report.aprobado !== 3) {
+            return acc;
+        }
+
         const breakdown = calculateHoursBreakdown(report);
         const empId = report.documento_id;
 
@@ -151,8 +156,9 @@ export function OvertimeReport() {
 
         acc[empId].normal += breakdown.normal;
 
-        // Si aprobado === 3, las horas extras fueron rechazadas, no incluirlas
-        if (report.aprobado !== 3) {
+        // Solo incluir horas extras si están completamente aprobadas (aprobado === 1)
+        // Si aprobado === 3, las extras fueron rechazadas, no incluirlas
+        if (report.aprobado === 1) {
             acc[empId].extra += breakdown.extra;
         }
 

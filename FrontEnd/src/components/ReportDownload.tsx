@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Download, Loader2, Calendar, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { reportesAPI, companiesAPI, type Reporte, type Company } from '../services/api';
+import * as XLSX from 'xlsx';
 
 interface ReportSummary {
     cliente: string;
@@ -102,44 +103,49 @@ export function ReportDownload() {
         }
     };
 
-    const downloadCSV = () => {
+    const downloadXLSX = () => {
         if (preview.length === 0) return;
 
-        // Build CSV content with semicolon delimiter
-        const lines: string[] = [];
+        // Prepare data for Excel
+        const excelData = [];
 
-        // Header
-        lines.push('Empresa;Elemento PEP;Total Horas;Porcentaje Participación');
+        // Add header row
+        excelData.push(['Empresa', 'Elemento PEP', 'Total Horas', 'Porcentaje Participación']);
 
-        // Data rows
+        // Add data rows
         preview.forEach(company => {
             const percentage = grandTotalHours > 0
                 ? ((company.total_horas / grandTotalHours) * 100).toFixed(2)
                 : '0.00';
 
-            lines.push([
-                `"${company.nombre_company}"`,
-                `"${company.elemento_pep}"`,
-                company.total_horas.toString(),
+            excelData.push([
+                company.nombre_company,
+                company.elemento_pep,
+                company.total_horas,
                 `${percentage}%`
-            ].join(';'));
+            ]);
         });
 
-        // Add totals
-        lines.push(`TOTAL GENERAL;;${grandTotalHours};100.00%`);
+        // Add total row
+        excelData.push(['TOTAL GENERAL', '', grandTotalHours, '100.00%']);
 
-        const csvContent = lines.join('\n');
-        // Add BOM for Excel to recognize UTF-8
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        // Create worksheet from data
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `reporte_horas_empresas_${dateFrom}_a_${dateTo}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // Set column widths
+        worksheet['!cols'] = [
+            { wch: 30 }, // Empresa
+            { wch: 20 }, // Elemento PEP
+            { wch: 15 }, // Total Horas
+            { wch: 20 }  // Porcentaje Participación
+        ];
+
+        // Create workbook
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Horas');
+
+        // Download file
+        XLSX.writeFile(workbook, `reporte_horas_empresas_${dateFrom}_a_${dateTo}.xlsx`);
     };
 
     return (
@@ -199,9 +205,9 @@ export function ReportDownload() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg">Vista Previa (Resumen por Empresa)</CardTitle>
-                        <Button onClick={downloadCSV} className="bg-[#303483] hover:bg-[#252a6b]">
+                        <Button onClick={downloadXLSX} className="bg-[#303483] hover:bg-[#252a6b]">
                             <Download className="w-4 h-4 mr-2" />
-                            Descargar CSV
+                            Descargar XLSX
                         </Button>
                     </CardHeader>
                     <CardContent>

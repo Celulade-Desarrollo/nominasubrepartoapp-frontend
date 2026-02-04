@@ -30,17 +30,6 @@ interface HoursHistoryByDateProps {
 }
 
 export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps) {
-  // Función para descargar la firma
-  const handleDownloadFirma = (firmaBase64: string, clienteNombre: string, fecha: string) => {
-    // Crear un elemento <a> temporal
-    const link = document.createElement('a');
-    link.href = firmaBase64;
-    link.download = `firma_${clienteNombre}_${fecha}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // Agrupar registros por fecha
   const groupedByDate = records.reduce((acc, record) => {
     const fecha = record.fecha;
@@ -188,14 +177,15 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
                                     </a>
                                   )}
                                   {record.firma && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownloadFirma(record.firma!, record.clienteNombre, record.fecha)}
-                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
+                                    <a
+                                      href={record.firma}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
                                     >
                                       <FileSignature className="w-3 h-3" />
                                       Ver firma
-                                    </button>
+                                    </a>
                                   )}
                                 </div>
                               )}

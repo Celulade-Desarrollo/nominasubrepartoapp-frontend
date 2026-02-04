@@ -416,8 +416,17 @@ export function CalendarHoursEntry({
 
   const handleAreaChange = (newArea: string) => {
     setAreaCliente(newArea);
-    // No limpiar el cliente automáticamente - dejar que el usuario corrija manualmente
-    // La validación al guardar se encargará de verificar que la combinación sea válida
+
+    // Si hay un cliente seleccionado, verificar si el área nueva es válida para ese cliente
+    if (selectedCliente) {
+      const clienteData = clientes.find(c => c.elementoPEP === selectedCliente);
+      const clienteAreas = dynamicAreas.length > 0 ? dynamicAreas : (clienteData?.areas || []);
+
+      // Si el área nueva no está en las áreas del cliente, limpiar el cliente
+      if (!clienteAreas.includes(newArea)) {
+        setSelectedCliente('');
+      }
+    }
   };
 
   const handleClienteChange = (newClienteId: string) => {
@@ -456,12 +465,9 @@ export function CalendarHoursEntry({
     ? clientes.filter(c => c.areas && c.areas.includes(areaCliente))
     : clientes;
 
-  // Usar áreas dinámicas cargadas del backend, o áreas estáticas si no hay dinámicas
-  const filteredAreas = cleanAreas(
-    selectedCliente && dynamicAreas.length > 0
-      ? dynamicAreas
-      : (selectedCliente ? selectedClienteData?.areas || [] : allAreas)
-  );
+  // Siempre mostrar todas las áreas disponibles para permitir cambios flexibles
+  // Si hay un cliente seleccionado, mostrar sus áreas primero, luego las demás
+  const filteredAreas = cleanAreas(allAreas);
 
   return (
     <>

@@ -97,7 +97,14 @@ export function CoordinatorDashboard({ user, onLogout }: CoordinatorDashboardPro
         horas: parseFloat(r.horas.toString()),
         fecha: r.fecha_trabajada ? new Date(r.fecha_trabajada).toISOString().split('T')[0] : new Date(r.created_at).toISOString().split('T')[0],
         areaCliente: r.nombre_area,
-        aprobado: r.aprobado
+        aprobado: r.aprobado,
+        latitud: r.latitud,
+        longitud: r.longitud,
+        firma: r.firma,
+        tipoActividad: r.tipo_actividad,
+        horaInicio: r.hora_inicio,
+        horaFin: r.hora_fin,
+        descripcion: r.descripcion
       }));
 
       setHoursRecords(mappedRecords);

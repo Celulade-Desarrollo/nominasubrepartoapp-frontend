@@ -372,6 +372,12 @@ export function CalendarHoursEntry({
       return;
     }
 
+    // Calcular minutos desde medianoche para horaInicio y horaFin
+    const [horaInicioHH, horaInicioMM] = horaInicio.split(':').map(Number);
+    const [horaFinHH, horaFinMM] = horaFin.split(':').map(Number);
+    const inicioMinutos = horaInicioHH * 60 + horaInicioMM;
+    const finMinutos = horaFinHH * 60 + horaFinMM;
+
     const horasCalculadas = (finMinutos - inicioMinutos) / 60;
 
     if (tipoActividad === 'En Cliente') {

@@ -64,12 +64,34 @@ export function OvertimeReport() {
         const startMin = timeToMinutes(report.hora_inicio);
         const endMin = timeToMinutes(report.hora_fin);
 
-        const date = parseISO(report.fecha_trabajada);
-        const dayOfWeek = date.getDay();
+        // Total trabajado
+        let totalMinutes = endMin - startMin;
+        if (totalMinutes < 0) totalMinutes += 24 * 60;
 
+        // Determinar horario normal según el día
+        const date = parseISO(report.fecha_trabajada);
+        const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+
+        // DOMINGO: Todo el día son horas extras
+        if (dayOfWeek === 0) {
+            return {
+                normal: 0,
+                extra: parseFloat((totalMinutes / 60).toFixed(2)),
+                total: parseFloat((totalMinutes / 60).toFixed(2))
+            };
+        }
+
+        // CONFIGURAR HORARIOS NORMALES
         let normalStartStr = settings.normal_hours_start?.replace(/"/g, '') || '07:30';
         let normalEndStr = settings.normal_hours_end?.replace(/"/g, '') || '17:30';
 
+        // SÁBADO: De 7:30 a 12:00 son normales, después son extras
+        if (dayOfWeek === 6) {
+            normalStartStr = settings.saturday_hours_start?.replace(/"/g, '') || '07:30';
+            normalEndStr = settings.saturday_hours_end?.replace(/"/g, '') || '12:00';
+        }
+
+        // Viernes usa horario especial si existe
         if (dayOfWeek === 5 && settings.normal_hours_end_friday) {
             normalEndStr = settings.normal_hours_end_friday.replace(/"/g, '');
         }
@@ -77,6 +99,7 @@ export function OvertimeReport() {
         const limitStart = timeToMinutes(normalStartStr);
         const limitEnd = timeToMinutes(normalEndStr);
 
+        // Calcular intersección (Horas Normales)
         const overlapStart = Math.max(startMin, limitStart);
         const overlapEnd = Math.min(endMin, limitEnd);
 
@@ -84,9 +107,6 @@ export function OvertimeReport() {
         if (overlapStart < overlapEnd) {
             normalMinutes = overlapEnd - overlapStart;
         }
-
-        let totalMinutes = endMin - startMin;
-        if (totalMinutes < 0) totalMinutes += 24 * 60;
 
         const extraMinutes = Math.max(0, totalMinutes - normalMinutes);
 
@@ -130,7 +150,12 @@ export function OvertimeReport() {
         }
 
         acc[empId].normal += breakdown.normal;
-        acc[empId].extra += breakdown.extra;
+
+        // Si aprobado === 3, las horas extras fueron rechazadas, no incluirlas
+        if (report.aprobado !== 3) {
+            acc[empId].extra += breakdown.extra;
+        }
+
         acc[empId].total += breakdown.total;
 
         return acc;

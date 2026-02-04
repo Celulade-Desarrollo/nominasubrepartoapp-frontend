@@ -100,16 +100,34 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     const startMin = timeToMinutes(report.hora_inicio);
     const endMin = timeToMinutes(report.hora_fin);
 
+    // Total trabajado
+    let totalMinutes = endMin - startMin;
+    if (totalMinutes < 0) totalMinutes += 24 * 60; // Caso cruce de medianoche (simple)
+
     // Determinar horario normal según el día
     const date = parseISO(report.fecha_trabajada); // Local date from string YYYY-MM-DD
-    const dayOfWeek = date.getDay(); // 0=Sun, 5=Fri
-    // Viernes usa horario especial si existe, sino usa normal. Otros días usan normal.
-    // OJO: parseISO interpreta en local time si no tiene Z. fecha_trabajada es YYYY-MM-DD. 
-    // Al usar parseISO('2023-10-27') devuelve media noche local. getDay() es correcto.
+    const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
 
+    // DOMINGO: Todo el día son horas extras
+    if (dayOfWeek === 0) {
+      return {
+        normal: 0,
+        extra: parseFloat((totalMinutes / 60).toFixed(2)),
+        total: parseFloat((totalMinutes / 60).toFixed(2))
+      };
+    }
+
+    // CONFIGURAR HORARIOS NORMALES
     let normalStartStr = settings.normal_hours_start?.replace(/"/g, '') || '07:30';
     let normalEndStr = settings.normal_hours_end?.replace(/"/g, '') || '17:30';
 
+    // SÁBADO: De 7:30 a 12:00 son normales, después son extras
+    if (dayOfWeek === 6) {
+      normalStartStr = settings.saturday_hours_start?.replace(/"/g, '') || '07:30';
+      normalEndStr = settings.saturday_hours_end?.replace(/"/g, '') || '12:00';
+    }
+
+    // Viernes usa horario especial si existe
     if (dayOfWeek === 5 && settings.normal_hours_end_friday) {
       normalEndStr = settings.normal_hours_end_friday.replace(/"/g, '');
     }
@@ -128,10 +146,6 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
     if (overlapStart < overlapEnd) {
       normalMinutes = overlapEnd - overlapStart;
     }
-
-    // Total trabajado
-    let totalMinutes = endMin - startMin;
-    if (totalMinutes < 0) totalMinutes += 24 * 60; // Caso cruce de medianoche (simple)
 
     const extraMinutes = Math.max(0, totalMinutes - normalMinutes);
 
@@ -292,7 +306,10 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
 
       // Calcular desglose de horas extras para este reporte
       const breakdown = calculateHoursBreakdown(report);
-      week.extraHours += breakdown.extra;
+      // Si aprobado === 3, las horas extras fueron rechazadas, no incluirlas
+      if (report.aprobado !== 3) {
+        week.extraHours += breakdown.extra;
+      }
 
       // Update week totals
       week.totalHours += report.horas;
@@ -369,8 +386,9 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   const monthlyTechnicianSummary = useMemo(() => {
     if (!dateFrom || !dateTo) return [];
 
-    const from = new Date(dateFrom);
-    const to = new Date(dateTo);
+    // Usar parseISO para evitar problemas de zona horaria
+    const from = parseISO(dateFrom);
+    const to = parseISO(dateTo);
     to.setHours(23, 59, 59, 999);
 
     const summary = new Map<number, { name: string; total: number; reports: number }>();
@@ -436,7 +454,8 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           {employeeReports.map(report => {
             // Calcular breakdown una sola vez para usar en toda la UI
             const breakdown = calculateHoursBreakdown(report);
-            const hasExtras = breakdown.extra > 0;
+            // No mostrar extras si fueron rechazadas (aprobado === 3)
+            const hasExtras = breakdown.extra > 0 && report.aprobado !== 3;
 
             return (
               <div key={report.id} className="border rounded-lg p-4 bg-white shadow-sm">

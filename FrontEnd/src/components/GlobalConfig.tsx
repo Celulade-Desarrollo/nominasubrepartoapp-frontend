@@ -16,6 +16,8 @@ export function GlobalConfig() {
     const [normalHoursStart, setNormalHoursStart] = useState<string>('07:30');
     const [normalHoursEnd, setNormalHoursEnd] = useState<string>('17:30');
     const [normalHoursEndFriday, setNormalHoursEndFriday] = useState<string>('16:30');
+    const [saturdayHoursStart, setSaturdayHoursStart] = useState<string>('07:30');
+    const [saturdayHoursEnd, setSaturdayHoursEnd] = useState<string>('12:00');
 
     useEffect(() => {
         loadSettings();
@@ -29,6 +31,8 @@ export function GlobalConfig() {
                 if (data.normal_hours_start) setNormalHoursStart(data.normal_hours_start.replace(/"/g, ''));
                 if (data.normal_hours_end) setNormalHoursEnd(data.normal_hours_end.replace(/"/g, ''));
                 if (data.normal_hours_end_friday) setNormalHoursEndFriday(data.normal_hours_end_friday.replace(/"/g, ''));
+                if (data.saturday_hours_start) setSaturdayHoursStart(data.saturday_hours_start.replace(/"/g, ''));
+                if (data.saturday_hours_end) setSaturdayHoursEnd(data.saturday_hours_end.replace(/"/g, ''));
             }
         } catch (error) {
             console.error("Error loading settings:", error);
@@ -45,7 +49,9 @@ export function GlobalConfig() {
             await Promise.all([
                 settingsAPI.update({ key: 'normal_hours_start', value: normalHoursStart }),
                 settingsAPI.update({ key: 'normal_hours_end', value: normalHoursEnd }),
-                settingsAPI.update({ key: 'normal_hours_end_friday', value: normalHoursEndFriday })
+                settingsAPI.update({ key: 'normal_hours_end_friday', value: normalHoursEndFriday }),
+                settingsAPI.update({ key: 'saturday_hours_start', value: saturdayHoursStart }),
+                settingsAPI.update({ key: 'saturday_hours_end', value: saturdayHoursEnd })
             ]);
 
             setMessage({ type: 'success', text: 'Configuración guardada correctamente' });
@@ -122,10 +128,42 @@ export function GlobalConfig() {
                                 />
                             </div>
                         </div>
-                        <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-100">
-                            ⏰ Horario normal: L-J hasta <strong>{normalHoursEnd}</strong>, Viernes hasta <strong>{normalHoursEndFriday}</strong>.
-                            Trabajo antes o después de este horario = horas extras.
-                        </p>
+
+                        <div className="grid grid-cols-2 gap-4 max-w-md mt-6 pt-4 border-t">
+                            <div className="space-y-2">
+                                <Label htmlFor="saturdayStart">Hora Inicio (Sábado)</Label>
+                                <Input
+                                    id="saturdayStart"
+                                    type="time"
+                                    value={saturdayHoursStart}
+                                    onChange={(e) => setSaturdayHoursStart(e.target.value)}
+                                    className="font-mono"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="saturdayEnd">Hora Fin (Sábado)</Label>
+                                <Input
+                                    id="saturdayEnd"
+                                    type="time"
+                                    value={saturdayHoursEnd}
+                                    onChange={(e) => setSaturdayHoursEnd(e.target.value)}
+                                    className="font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-100">
+                                ⏰ Horario normal: L-J hasta <strong>{normalHoursEnd}</strong>, Viernes hasta <strong>{normalHoursEndFriday}</strong>.
+                                Trabajo antes o después de este horario = horas extras.
+                            </p>
+                            <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-100">
+                                📅 <strong>Sábado:</strong> De {saturdayHoursStart} a {saturdayHoursEnd} son horas normales, después son horas extras.
+                            </p>
+                            <p className="text-sm text-purple-600 bg-purple-50 p-3 rounded-md border border-purple-100">
+                                🌞 <strong>Domingo:</strong> Todo el día se considera horas extras.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="flex justify-end pt-4 border-t">

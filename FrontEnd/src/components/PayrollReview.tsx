@@ -733,9 +733,27 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                 className="px-3 py-2 border rounded-md"
               />
             </div>
+            <Button
+              onClick={fetchReports}
+              variant="outline"
+              size="sm"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Actualizar Datos
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {monthlyTechnicianSummary.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
+              Mostrando registros desde <span className="font-semibold">{format(new Date(dateFrom), "d 'de' MMMM 'de' yyyy", { locale: es })}</span> hasta <span className="font-semibold">{format(new Date(dateTo), "d 'de' MMMM 'de' yyyy", { locale: es })}</span>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

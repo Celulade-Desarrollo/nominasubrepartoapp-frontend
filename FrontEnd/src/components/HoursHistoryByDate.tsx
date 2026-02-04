@@ -67,6 +67,14 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
             Rechazado
           </Badge>
         );
+      case 3:
+        // Approved (Only Normal Hours)
+        return (
+          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100/80 px-2 py-0.5 text-xs">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Aprobado (Sin Extras)
+          </Badge>
+        );
       default:
         // Pending (0 or undefined)
         return (

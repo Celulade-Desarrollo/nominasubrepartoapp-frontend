@@ -364,6 +364,13 @@ export function CalendarHoursEntry({
       return;
     }
 
+    // Validar que el área seleccionada pertenezca al cliente
+    const clienteAreas = dynamicAreas.length > 0 ? dynamicAreas : selectedCompanyData.areas;
+    if (!clienteAreas.includes(areaCliente.trim())) {
+      setWeeklyHoursError(`El área "${areaCliente}" no está disponible para el cliente seleccionado. Por favor selecciona otra área.`);
+      return;
+    }
+
     if (tipoActividad === 'En Cliente') {
       // Si no hay ubicación Y tampoco fue rechazada, solicitar ubicación
       if (!ubicacion && !ubicacionRechazada) {
@@ -409,26 +416,17 @@ export function CalendarHoursEntry({
 
   const handleAreaChange = (newArea: string) => {
     setAreaCliente(newArea);
-    // Si hay un cliente seleccionado que no tiene esta área, limpiar la selección del cliente
-    if (selectedCliente) {
-      const cliente = clientes.find(c => c.elementoPEP === selectedCliente);
-      if (cliente && !cliente.areas.includes(newArea)) {
-        setSelectedCliente('');
-      }
-    }
+    // No limpiar el cliente automáticamente - dejar que el usuario corrija manualmente
+    // La validación al guardar se encargará de verificar que la combinación sea válida
   };
 
   const handleClienteChange = (newClienteId: string) => {
     setSelectedCliente(newClienteId);
-    // Validar si el área actual es válida para el nuevo cliente
-    // Si es válida, mantenerla; si no, limpiarla
-    if (areaCliente) {
-      const nuevoCliente = clientes.find(c => c.elementoPEP === newClienteId);
-      if (nuevoCliente && !nuevoCliente.areas.includes(areaCliente)) {
-        // El área NO existe en el nuevo cliente, limpiarla
-        setAreaCliente('');
-      }
-      // Si el área EXISTS, la mantenemos (no hacemos nada)
+    // Si hay un área seleccionada, verificar con las áreas dinámicas del nuevo cliente
+    // Si el cliente cambia, mantener el área solo si es válida para el nuevo cliente
+    if (areaCliente && newClienteId) {
+      // Esperar a que se carguen las áreas dinámicas del nuevo cliente
+      // No limpiar automáticamente - el usuario puede querer mantener la selección
     }
   };
 

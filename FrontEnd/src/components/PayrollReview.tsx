@@ -2,11 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users, Calendar as CalendarIcon, MapPin, FileSignature } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users, Calendar as CalendarIcon, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { reportesAPI, settingsAPI, type Reporte } from '../services/api';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -36,9 +35,6 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   // Date range for technicians view
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-
-  // Signature dialog state
-  const [selectedFirma, setSelectedFirma] = useState<string | null>(null);
 
   // Initialize date range (current month)
   useEffect(() => {
@@ -486,38 +482,30 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       )}
                     </div>
 
-                    {/* Ubicación y firma */}
-                    {(report.latitud || report.firma) && (
-                      <div className="flex gap-2 mt-2">
-                        {report.latitud && report.longitud && (
-                          <a
-                            href={`https://www.google.com/maps?q=${report.latitud},${report.longitud}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                          >
-                            <MapPin className="w-3 h-3" />
-                            Ver ubicación
-                          </a>
-                        )}
-                        {report.firma && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('Click en Ver firma detectado', report.firma);
-                              console.log('Estado actual selectedFirma:', selectedFirma);
-                              setSelectedFirma(report.firma || null);
-                              console.log('Estado después de setSelectedFirma');
-                            }}
-                            className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
-                            style={{ pointerEvents: 'auto' }}
-                          >
-                            <FileSignature className="w-3 h-3" />
-                            Ver firma
-                          </button>
-                        )}
+                    {/* Ubicación */}
+                    {report.latitud && report.longitud && (
+                      <div className="mt-2">
+                        <a
+                          href={`https://www.google.com/maps?q=${report.latitud},${report.longitud}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        >
+                          <MapPin className="w-3 h-3" />
+                          Ver ubicación
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Firma */}
+                    {report.firma && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-600 mb-1">Firma:</p>
+                        <img
+                          src={report.firma}
+                          alt="Firma del cliente"
+                          className="max-w-[200px] border rounded"
+                        />
                       </div>
                     )}
 
@@ -1194,24 +1182,6 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           </div>
         )}
       </CardContent>
-
-      {/* Dialog para mostrar la firma */}
-      <Dialog open={!!selectedFirma} onOpenChange={() => setSelectedFirma(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Firma del Reporte</DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center p-4">
-            {selectedFirma && (
-              <img
-                src={selectedFirma}
-                alt="Firma"
-                className="max-w-full border rounded-lg"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

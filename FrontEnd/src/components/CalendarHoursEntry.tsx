@@ -344,34 +344,6 @@ export function CalendarHoursEntry({
       return;
     }
 
-    const horasNumero = parseFloat(horas);
-    const dayOfWeek = selectedDate.getDay() as keyof typeof activeDailyLimits;
-
-    // Validar Límite Diario dinámico (incluye Sábado/Domingo si es 0)
-    const maxPermitido = activeDailyLimits[dayOfWeek];
-
-    // Calcular horas ya registradas ese día
-    const horasYaRegistradas = getDailyHours(selectedDate);
-    // Si estamos editando, restar las horas del registro que editamos
-    const horasEditando = recordToEdit ? recordToEdit.horas : 0;
-    const horasExistentesAjustadas = horasYaRegistradas - horasEditando;
-    const totalHorasDia = horasExistentesAjustadas + horasNumero;
-
-    if (maxPermitido === 0) {
-      setWeeklyHoursError(`No se permite registrar horas los ${format(selectedDate, 'EEEE', { locale: es })}s.`);
-      return;
-    }
-
-    if (totalHorasDia > maxPermitido) {
-      const disponibles = maxPermitido - horasExistentesAjustadas;
-      if (disponibles <= 0) {
-        setWeeklyHoursError(`Ya tienes ${horasExistentesAjustadas}h registradas este día. El límite es ${maxPermitido}h.`);
-      } else {
-        setWeeklyHoursError(`No puedes registrar ${horasNumero}h. Ya tienes ${horasExistentesAjustadas}h registradas. Solo te quedan ${disponibles}h disponibles para este día (límite: ${maxPermitido}h).`);
-      }
-      return;
-    }
-
     // Calcular minutos desde medianoche para horaInicio y horaFin
     const [horaInicioHH, horaInicioMM] = horaInicio.split(':').map(Number);
     const [horaFinHH, horaFinMM] = horaFin.split(':').map(Number);
@@ -379,6 +351,12 @@ export function CalendarHoursEntry({
     const finMinutos = horaFinHH * 60 + horaFinMM;
 
     const horasCalculadas = (finMinutos - inicioMinutos) / 60;
+
+    // Validar que las horas calculadas sean positivas
+    if (horasCalculadas <= 0) {
+      setWeeklyHoursError('La hora de fin debe ser posterior a la hora de inicio.');
+      return;
+    }
 
     if (tipoActividad === 'En Cliente') {
       // Si no hay ubicación Y tampoco fue rechazada, solicitar ubicación

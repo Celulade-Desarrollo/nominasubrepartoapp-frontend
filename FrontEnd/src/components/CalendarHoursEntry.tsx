@@ -358,6 +358,12 @@ export function CalendarHoursEntry({
       return;
     }
 
+    // Validar que la descripción sea obligatoria
+    if (!descripcion || !descripcion.trim()) {
+      setWeeklyHoursError('La descripción es obligatoria');
+      return;
+    }
+
     if (tipoActividad === 'En Cliente') {
       // Si no hay ubicación Y tampoco fue rechazada, solicitar ubicación
       if (!ubicacion && !ubicacionRechazada) {
@@ -681,14 +687,15 @@ export function CalendarHoursEntry({
 
             {/* Description Field */}
             <div className="space-y-2">
-              <Label htmlFor="descripcion">Descripción de Actividad</Label>
+              <Label htmlFor="descripcion">Descripción de Actividad <span className="text-red-500">*</span></Label>
               <Textarea
                 id="descripcion"
-                placeholder="Describe qué se hizo..."
+                placeholder="Describe qué se hizo... (obligatorio)"
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 rows={2}
                 className="resize-none"
+                required
               />
             </div>
 

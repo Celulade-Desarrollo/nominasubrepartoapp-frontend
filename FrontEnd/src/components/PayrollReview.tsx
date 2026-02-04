@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users, Calendar as CalendarIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Calculator, User, ArrowLeft, CheckCheck, XOctagon, RefreshCw, Users, Calendar as CalendarIcon, MapPin, FileSignature } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { reportesAPI, settingsAPI, type Reporte } from '../services/api';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -35,6 +36,9 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
   // Date range for technicians view
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Signature dialog state
+  const [selectedFirma, setSelectedFirma] = useState<string | null>(null);
 
   // Initialize date range (current month)
   useEffect(() => {
@@ -442,6 +446,53 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       )}
                       <span>{report.nombre_area}</span>
                     </div>
+
+                    {/* Información adicional: horarios, tipo, descripción */}
+                    <div className="mt-2 space-y-1">
+                      {report.hora_inicio && report.hora_fin && (
+                        <p className="text-xs text-gray-600">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          {report.hora_inicio} - {report.hora_fin}
+                        </p>
+                      )}
+                      {report.tipo_actividad && (
+                        <p className="text-xs text-gray-600">
+                          Tipo: <span className="font-medium">{report.tipo_actividad}</span>
+                        </p>
+                      )}
+                      {report.descripcion && (
+                        <p className="text-xs text-gray-600 italic">
+                          "{report.descripcion}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Ubicación y firma */}
+                    {(report.latitud || report.firma) && (
+                      <div className="flex gap-2 mt-2">
+                        {report.latitud && report.longitud && (
+                          <a
+                            href={`https://www.google.com/maps?q=${report.latitud},${report.longitud}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                          >
+                            <MapPin className="w-3 h-3" />
+                            Ver ubicación
+                          </a>
+                        )}
+                        {report.firma && (
+                          <button
+                            onClick={() => setSelectedFirma(report.firma || null)}
+                            className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1"
+                          >
+                            <FileSignature className="w-3 h-3" />
+                            Ver firma
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {(report.aprobado === 1 || report.aprobado === 2 || report.aprobado === 3) && report.nombre_aprobador && (
                       <div className="text-xs text-gray-400 mt-1">
                         {report.aprobado === 1 ? 'Aprobado' : report.aprobado === 3 ? 'Aprobado (Solo Normales)' : 'Rechazado'} por: {report.nombre_aprobador}
@@ -1097,6 +1148,24 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Dialog para mostrar la firma */}
+      <Dialog open={!!selectedFirma} onOpenChange={() => setSelectedFirma(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Firma del Reporte</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center p-4">
+            {selectedFirma && (
+              <img
+                src={selectedFirma}
+                alt="Firma"
+                className="max-w-full border rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

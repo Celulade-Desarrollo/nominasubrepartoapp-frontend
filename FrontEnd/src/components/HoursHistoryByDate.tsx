@@ -104,140 +104,142 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Historial por Fecha</CardTitle>
-        <CardDescription>
-          Horas registradas organizadas por día
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {sortedDates.map((fecha) => {
-            const dayRecords = groupedByDate[fecha];
-            const totalHorasDelDia = dayRecords.reduce((sum, r) => sum + r.horas, 0);
-            const formattedDate = format(new Date(fecha + 'T00:00:00'), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Historial por Fecha</CardTitle>
+          <CardDescription>
+            Horas registradas organizadas por día
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {sortedDates.map((fecha) => {
+              const dayRecords = groupedByDate[fecha];
+              const totalHorasDelDia = dayRecords.reduce((sum, r) => sum + r.horas, 0);
+              const formattedDate = format(new Date(fecha + 'T00:00:00'), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
 
-            return (
-              <div key={fecha} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3 pb-3 border-b">
-                  <div className="flex items-center">
-                    <CalendarIcon className="w-4 h-4 text-[#303483] mr-2" />
-                    <h3 className="capitalize text-gray-900">{formattedDate}</h3>
+              return (
+                <div key={fecha} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3 pb-3 border-b">
+                    <div className="flex items-center">
+                      <CalendarIcon className="w-4 h-4 text-[#303483] mr-2" />
+                      <h3 className="capitalize text-gray-900">{formattedDate}</h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Total</p>
+                      <p className="text-[#303483]">{totalHorasDelDia}h</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">Total</p>
-                    <p className="text-[#303483]">{totalHorasDelDia}h</p>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  {dayRecords.map((record, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div className="w-full">
-                            <p className="text-gray-900 font-medium">{record.clienteNombre}</p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {record.elementoPEP && (
-                                <span className="text-sm text-gray-500">{record.elementoPEP}</span>
-                              )}
-                              {record.areaCliente && (
-                                <span className="text-sm text-[#303483] bg-[#303483]/10 px-2 py-0.5 rounded">
-                                  {record.areaCliente}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Información adicional: horarios, tipo, descripción */}
-                            <div className="mt-2 space-y-1">
-                              {record.horaInicio && record.horaFin && (
-                                <p className="text-xs text-gray-600">
-                                  <Clock className="w-3 h-3 inline mr-1" />
-                                  {record.horaInicio} - {record.horaFin}
-                                </p>
-                              )}
-                              {record.tipoActividad && (
-                                <p className="text-xs text-gray-600">
-                                  Tipo: <span className="font-medium">{record.tipoActividad}</span>
-                                </p>
-                              )}
-                              {record.descripcion && (
-                                <p className="text-xs text-gray-600 italic">
-                                  "{record.descripcion}"
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Ubicación y firma */}
-                            {(record.latitud || record.firma) && (
-                              <div className="flex gap-2 mt-2">
-                                {record.latitud && record.longitud && (
-                                  <a
-                                    href={`https://www.google.com/maps?q=${record.latitud},${record.longitud}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                  >
-                                    <MapPin className="w-3 h-3" />
-                                    Ver ubicación
-                                  </a>
+                  <div className="space-y-2">
+                    {dayRecords.map((record, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="w-full">
+                              <p className="text-gray-900 font-medium">{record.clienteNombre}</p>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {record.elementoPEP && (
+                                  <span className="text-sm text-gray-500">{record.elementoPEP}</span>
                                 )}
-                                {record.firma && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      console.log('Click en Ver firma detectado', record.firma);
-                                      console.log('Estado actual selectedFirma:', selectedFirma);
-                                      setSelectedFirma(record.firma || null);
-                                      console.log('Estado después de setSelectedFirma');
-                                    }}
-                                    className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <FileSignature className="w-3 h-3" />
-                                    Ver firma
-                                  </button>
+                                {record.areaCliente && (
+                                  <span className="text-sm text-[#303483] bg-[#303483]/10 px-2 py-0.5 rounded">
+                                    {record.areaCliente}
+                                  </span>
                                 )}
                               </div>
-                            )}
+
+                              {/* Información adicional: horarios, tipo, descripción */}
+                              <div className="mt-2 space-y-1">
+                                {record.horaInicio && record.horaFin && (
+                                  <p className="text-xs text-gray-600">
+                                    <Clock className="w-3 h-3 inline mr-1" />
+                                    {record.horaInicio} - {record.horaFin}
+                                  </p>
+                                )}
+                                {record.tipoActividad && (
+                                  <p className="text-xs text-gray-600">
+                                    Tipo: <span className="font-medium">{record.tipoActividad}</span>
+                                  </p>
+                                )}
+                                {record.descripcion && (
+                                  <p className="text-xs text-gray-600 italic">
+                                    "{record.descripcion}"
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Ubicación y firma */}
+                              {(record.latitud || record.firma) && (
+                                <div className="flex gap-2 mt-2">
+                                  {record.latitud && record.longitud && (
+                                    <a
+                                      href={`https://www.google.com/maps?q=${record.latitud},${record.longitud}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                    >
+                                      <MapPin className="w-3 h-3" />
+                                      Ver ubicación
+                                    </a>
+                                  )}
+                                  {record.firma && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        console.log('Click en Ver firma detectado', record.firma);
+                                        console.log('Estado actual selectedFirma:', selectedFirma);
+                                        setSelectedFirma(record.firma || null);
+                                        console.log('Estado después de setSelectedFirma');
+                                      }}
+                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <FileSignature className="w-3 h-3" />
+                                      Ver firma
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col items-end gap-2 ml-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-gray-900 font-bold">{record.horas}h</span>
-                          {getStatusBadge(record.aprobado)}
+                        <div className="flex flex-col items-end gap-2 ml-4">
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-900 font-bold">{record.horas}h</span>
+                            {getStatusBadge(record.aprobado)}
+                          </div>
+
+                          {/* Show edit button ONLY if rejected (status 2) and onEdit is provided */}
+                          {record.aprobado === 2 && onEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-gray-500 hover:text-[#303483]"
+                              onClick={() => onEdit(record)}
+                            >
+                              <Edit2 className="w-3 h-3 mr-1" />
+                              Editar
+                            </Button>
+                          )}
                         </div>
-
-                        {/* Show edit button ONLY if rejected (status 2) and onEdit is provided */}
-                        {record.aprobado === 2 && onEdit && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-gray-500 hover:text-[#303483]"
-                            onClick={() => onEdit(record)}
-                          >
-                            <Edit2 className="w-3 h-3 mr-1" />
-                            Editar
-                          </Button>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Dialog para mostrar la firma */}
+      {/* Dialog para mostrar la firma - FUERA del Card */}
       <Dialog
         open={!!selectedFirma}
         onOpenChange={(open) => {
@@ -270,6 +272,6 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }

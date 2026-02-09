@@ -98,67 +98,72 @@ export function GlobalConfig() {
                         </p>
                         <div className="grid grid-cols-2 gap-4 max-w-md">
                             <div className="space-y-2">
-                                <Label htmlFor="normalStart">Hora Inicio Normal</Label>
+                                <Label htmlFor="normalStart">Hora Inicio Normal (24h)</Label>
                                 <Input
                                     id="normalStart"
                                     type="time"
                                     value={normalHoursStart}
                                     onChange={(e) => setNormalHoursStart(e.target.value)}
                                     className="font-mono"
+                                    step="60"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="normalEnd">Hora Fin Normal</Label>
+                                <Label htmlFor="normalEnd">Hora Fin Normal (24h)</Label>
                                 <Input
                                     id="normalEnd"
                                     type="time"
                                     value={normalHoursEnd}
                                     onChange={(e) => setNormalHoursEnd(e.target.value)}
                                     className="font-mono"
+                                    step="60"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="normalEndFriday">Hora Fin Normal (Viernes)</Label>
+                                <Label htmlFor="normalEndFriday">Hora Fin Viernes (24h)</Label>
                                 <Input
                                     id="normalEndFriday"
                                     type="time"
                                     value={normalHoursEndFriday}
                                     onChange={(e) => setNormalHoursEndFriday(e.target.value)}
                                     className="font-mono"
+                                    step="60"
                                 />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 max-w-md mt-6 pt-4 border-t">
                             <div className="space-y-2">
-                                <Label htmlFor="saturdayStart">Hora Inicio (Sábado)</Label>
+                                <Label htmlFor="saturdayStart">Hora Inicio Sábado (24h)</Label>
                                 <Input
                                     id="saturdayStart"
                                     type="time"
                                     value={saturdayHoursStart}
                                     onChange={(e) => setSaturdayHoursStart(e.target.value)}
                                     className="font-mono"
+                                    step="60"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="saturdayEnd">Hora Fin (Sábado)</Label>
+                                <Label htmlFor="saturdayEnd">Hora Fin Sábado (24h)</Label>
                                 <Input
                                     id="saturdayEnd"
                                     type="time"
                                     value={saturdayHoursEnd}
                                     onChange={(e) => setSaturdayHoursEnd(e.target.value)}
                                     className="font-mono"
+                                    step="60"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
                             <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-100">
-                                ⏰ Horario normal: L-J hasta <strong>{normalHoursEnd}</strong>, Viernes hasta <strong>{normalHoursEndFriday}</strong>.
+                                ⏰ Horario normal: L-J hasta <strong>{normalHoursEnd.substring(0, 5)}</strong>, Viernes hasta <strong>{normalHoursEndFriday.substring(0, 5)}</strong>.
                                 Trabajo antes o después de este horario = horas extras.
                             </p>
                             <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-100">
-                                📅 <strong>Sábado:</strong> De {saturdayHoursStart} a {saturdayHoursEnd} son horas normales, después son horas extras.
+                                📅 <strong>Sábado:</strong> De {saturdayHoursStart.substring(0, 5)} a {saturdayHoursEnd.substring(0, 5)} son horas normales, después son horas extras.
                             </p>
                             <p className="text-sm text-purple-600 bg-purple-50 p-3 rounded-md border border-purple-100">
                                 🌞 <strong>Domingo:</strong> Todo el día se considera horas extras.

@@ -147,7 +147,7 @@ export function HoursHistoryByDate({ records, onEdit }: HoursHistoryByDateProps)
                                 {record.horaInicio && record.horaFin && (
                                   <p className="text-xs text-gray-600">
                                     <Clock className="w-3 h-3 inline mr-1" />
-                                    {record.horaInicio} - {record.horaFin}
+                                    {record.horaInicio.substring(0, 5)} - {record.horaFin.substring(0, 5)}
                                   </p>
                                 )}
                                 {record.tipoActividad && (

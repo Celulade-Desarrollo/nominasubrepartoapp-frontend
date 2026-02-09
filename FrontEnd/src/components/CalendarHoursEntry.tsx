@@ -650,24 +650,26 @@ export function CalendarHoursEntry({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="horaInicio">Hora Inicio</Label>
+                <Label htmlFor="horaInicio">Hora Inicio (24h)</Label>
                 <Input
                   id="horaInicio"
                   type="time"
                   value={horaInicio}
                   onChange={(e) => setHoraInicio(e.target.value)}
                   className="font-mono"
+                  step="60"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="horaFin">Hora Fin</Label>
+                <Label htmlFor="horaFin">Hora Fin (24h)</Label>
                 <Input
                   id="horaFin"
                   type="time"
                   value={horaFin}
                   onChange={(e) => setHoraFin(e.target.value)}
                   className="font-mono"
+                  step="60"
                   required
                 />
               </div>

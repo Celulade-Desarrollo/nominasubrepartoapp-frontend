@@ -467,7 +467,7 @@ export function PayrollReview({ coordinatorId }: PayrollReviewProps) {
                       {report.hora_inicio && report.hora_fin && (
                         <p className="text-xs text-gray-600">
                           <Clock className="w-3 h-3 inline mr-1" />
-                          {report.hora_inicio} - {report.hora_fin}
+                          {report.hora_inicio.substring(0, 5)} - {report.hora_fin.substring(0, 5)}
                         </p>
                       )}
                       {report.tipo_actividad && (
